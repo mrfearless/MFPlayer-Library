@@ -1,0 +1,28 @@
+;------------------------------------------------------------------------------
+; MFPlayer x86 Library
+;
+; Paste this text at the end of \Radasm\masm\masmApiStruct.api to add these to Radasm
+;
+;------------------------------------------------------------------------------
+MFP_EVENT_HEADER,eEventType,hrEvent,pMediaPlayer,eState,pPropertyStore
+MFP_PLAY_EVENT,header:MFP_EVENT_HEADER,pMediaItem
+MFP_PAUSE_EVENT,header:MFP_EVENT_HEADER,pMediaItem
+MFP_STOP_EVENT,header:MFP_EVENT_HEADER,pMediaItem
+MFP_POSITION_SET_EVENT,header:MFP_EVENT_HEADER,pMediaItem
+MFP_RATE_SET_EVENT,header:MFP_EVENT_HEADER,pMediaItem,flRate
+MFP_MEDIAITEM_CREATED_EVENT,header:MFP_EVENT_HEADER,pMediaItem,dwUserData
+MFP_MEDIAITEM_SET_EVENT,header:MFP_EVENT_HEADER,pMediaItem
+MFP_FRAME_STEP_EVENT,header:MFP_EVENT_HEADER,pMediaItem
+MFP_MEDIAITEM_CLEARED_EVENT,header:MFP_EVENT_HEADER,pMediaItem
+MFP_MF_EVENT,header:MFP_EVENT_HEADER,MFEventType,pMFMediaEvent,pMediaItem
+MFP_ERROR_EVENT,header:MFP_EVENT_HEADER
+MFP_PLAYBACK_ENDED_EVENT,header:MFP_EVENT_HEADER,pMediaItem
+MFP_ACQUIRE_USER_CREDENTIAL_EVENT,header:MFP_EVENT_HEADER,dwUserData,fProceedWithAuthentication,hrAuthenticationStatus,pwszURL,pwszSite,pwszRealm,pwszPackage,nRetries,flags,pCredential
+MFVideoNormalizedRect,left,top,right,bottom
+
+IUnknownVtbl,QueryInterface,AddRef,Release
+IMFPMediaPlayerCallbackVtbl,QueryInterface,AddRef,Release,OnMediaPlayerEvent
+IMFPMPCallback,QueryInterface,AddRef,Release,OnMediaPlayerEvent
+IMFPMediaPlayerVtbl,QueryInterface,AddRef,Release,Play,Pause,Stop,FrameStep,SetPosition,GetPosition,GetDuration,SetRate,GetRate,GetSupportedRates,GetState,CreateMediaItemFromURL,CreateMediaItemFromObject,SetMediaItem,ClearMediaItem,GetMediaItem,GetVolume,SetVolume,GetBalance,SetBalance,GetMute,SetMute,GetNativeVideoSize,GetIdealVideoSize,SetVideoSourceRect,GetVideoSourceRect,SetAspectRatioMode,GetAspectRatioMode,GetVideoWindow,UpdateVideo,SetBorderColor,GetBorderColor,InsertEffect,RemoveEffect,RemoveAllEffects,Shutdown
+IMFPMediaItemVtbl,QueryInterface,AddRef,Release,GetMediaPlayer,GetURL,GetObject,GetUserData,SetUserData,GetStartStopPosition,SetStartStopPosition,HasVideo,HasAudio,IsProtected,GetDuration,GetNumberOfStreams,GetStreamSelection,SetStreamSelection,GetStreamAttribute,GetPresentationAttribute,GetCharacteristics,SetStreamSink,GetMetadata
+

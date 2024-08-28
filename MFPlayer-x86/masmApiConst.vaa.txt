@@ -1,0 +1,6 @@
+;------------------------------------------------------------------------------
+; MFPlayer x86 Library
+;
+; Paste the text below at the end of \WinAsm\API\masmApiConst.vaa to add these to WinASM
+;
+;------------------------------------------------------------------------------
