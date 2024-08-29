@@ -74,6 +74,12 @@ ENDIF
 IFNDEF lstrlenW
 lstrlenW PROTO lpString:QWORD
 ENDIF
+IFNDEF lstrcpyA
+lstrcpyA PROTO lpString1:QWORD, lpString2:QWORD
+ENDIF
+IFNDEF lstrcpyW
+lstrcpyW PROTO lpString1:QWORD, lpString2:QWORD
+ENDIF
 IFNDEF WideCharToMultiByte 
 WideCharToMultiByte PROTO CodePage:DWORD, dwFlags:DWORD, lpWideCharStr:QWORD, ccWideChar:DWORD, lpMultiByteStr:QWORD, cbMultiByte:DWORD, lpDefaultChar:QWORD, lpUsedDefaultChar:QWORD
 ENDIF
@@ -4225,7 +4231,7 @@ _MFP_ConvertMSTimeTo100NSValue ENDP
 
 ALIGN 8
 ;------------------------------------------------------------------------------
-; MFPConvertMSTimeToTimeString
+; MFPConvertMSTimeToTimeStringA
 ;
 ; Converts a milliseconds value to a time string, which shows hours, minutes, 
 ; seconds and milliseconds. 
@@ -4252,7 +4258,7 @@ ALIGN 8
 ; _MFP_Convert100NSValueToMSTime, _MFP_ConvertMSTimeTo100NSValue
 ;
 ;------------------------------------------------------------------------------
-MFPConvertMSTimeToTimeString PROC FRAME USES RBX RCX RDX RDI RSI dwMilliseconds:DWORD, lpszTime:QWORD, dwTimeFormat:DWORD
+MFPConvertMSTimeToTimeStringA PROC FRAME USES RBX RCX RDX RDI RSI dwMilliseconds:DWORD, lpszTime:QWORD, dwTimeFormat:DWORD
     LOCAL szDays[4]:BYTE
     LOCAL szHours[4]:BYTE
     LOCAL szMinutes[4]:BYTE
@@ -4694,92 +4700,65 @@ MFPConvertMSTimeToTimeString PROC FRAME USES RBX RCX RDX RDI RSI dwMilliseconds:
         .ELSE
             mov byte ptr [rdi+5], 0
         .ENDIF
-        
-;    .ELSEIF seconds != 0 ; output: seconds, milliseconds
-;    
-;        .IF sdword ptr seconds < 10
-;            lea rbx, szSeconds
-;            mov byte ptr [rbx], '0'
-;            inc rbx
-;            Invoke _MFP_utoa_ex, seconds, rbx, 10d, FALSE, FALSE
-;        .ELSE
-;            Invoke _MFP_utoa_ex, seconds, Addr szSeconds, 10d, FALSE, FALSE
-;        .ENDIF
-;        
-;        .IF sdword ptr milliseconds < 100
-;            lea rbx, szMilliseconds
-;            mov byte ptr [rbx], '0'
-;            .IF sdword ptr milliseconds < 10
-;                mov byte ptr [rbx+1], '0'
-;                inc rbx
-;                inc rbx
-;                Invoke _MFP_utoa_ex, milliseconds, rbx, 10d, FALSE, FALSE
-;            .ELSE ; 100s
-;                inc rbx
-;                Invoke _MFP_utoa_ex, milliseconds, rbx, 10d, FALSE, FALSE
-;            .ENDIF
-;        .ELSE
-;            Invoke _MFP_utoa_ex, milliseconds, Addr szMilliseconds, 10d, FALSE, FALSE
-;        .ENDIF
-;    
-;        ; 44:123
-;        mov edi, lpszTime
-;
-;        lea esi, szSeconds
-;        movzx eax, word ptr [esi]
-;        ; Seconds
-;        mov word ptr [edi+0], ax
-;        .IF dwTimeFormat == 0
-;            ; Colon
-;            mov byte ptr [edi+2], ':'
-;            
-;            lea esi, szMilliseconds
-;            mov eax, dword ptr [esi]
-;            ; Milliseconds
-;            mov dword ptr [edi+3], eax
-;            ; null
-;            mov byte ptr [edi+6], 0
-;        .ELSE
-;            mov byte ptr [edi+2], 0
-;        .ENDIF
-;        
-;    .ELSE ; output: milliseconds
-;    
-;        .IF sdword ptr milliseconds < 100
-;            lea rbx, szMilliseconds
-;            mov byte ptr [rbx], '0'
-;            .IF sdword ptr milliseconds < 10
-;                mov byte ptr [rbx+1], '0'
-;                inc rbx
-;                inc rbx
-;                Invoke _MFP_utoa_ex, milliseconds, rbx, 10d, FALSE, FALSE
-;            .ELSE ; 100s
-;                inc rbx
-;                Invoke _MFP_utoa_ex, milliseconds, rbx, 10d, FALSE, FALSE
-;            .ENDIF
-;        .ELSE
-;            Invoke _MFP_utoa_ex, milliseconds, Addr szMilliseconds, 10d, FALSE, FALSE
-;        .ENDIF
-;    
-;        ; 123
-;        mov edi, lpszTime
-;        
-;        .IF dwTimeFormat == 0
-;            lea esi, szMilliseconds
-;            mov eax, dword ptr [esi]
-;            ; Milliseconds
-;            mov dword ptr [edi+0], eax
-;            ; null
-;            mov byte ptr [edi+3], 0
-;        .ELSE
-;            mov byte ptr [edi+0], '0'
-;            mov byte ptr [edi+1], 0
-;        .ENDIF
     .ENDIF
     
     mov eax, TRUE  
     ret
-MFPConvertMSTimeToTimeString ENDP
+MFPConvertMSTimeToTimeStringA ENDP
+
+ALIGN 8
+;------------------------------------------------------------------------------
+; MFPConvertMSTimeToTimeStringW
+;
+; Converts a milliseconds value to a time string, which shows hours, minutes, 
+; seconds and milliseconds. 
+;
+; Parameters:
+;
+; * dwMilliseconds - milliseconds value to convert.
+;
+; * lpszTime - pointer to string buffer to store the converted time.
+;
+; * dwTimeFormat - 0 to include milliseconds, 1 to exclude them.
+;
+; Returns:
+;
+; TRUE if succcesful or FALSE otherwise
+;
+; Notes:
+;
+; Ensure the string buffer pointed to by the lpszTime parameter is at least 32
+; bytes long.
+;
+; See Also:
+;
+; _MFP_Convert100NSValueToMSTime, _MFP_ConvertMSTimeTo100NSValue
+;
+;------------------------------------------------------------------------------
+MFPConvertMSTimeToTimeStringW PROC FRAME USES RBX dwMilliseconds:DWORD, lpszTime:QWORD, dwTimeFormat:DWORD
+    LOCAL szAnsiTime[24]:BYTE
+    LOCAL pWideTime:QWORD
+    
+    .IF lpszTime == 0
+        mov eax, FALSE
+        ret
+    .ENDIF
+    
+    Invoke MFPConvertMSTimeToTimeStringA, dwMilliseconds, Addr szAnsiTime, dwTimeFormat
+    .IF rax == TRUE
+        Invoke _MFP_ConvertStringToWide, Addr szAnsiTime
+        .IF eax != NULL
+            mov pWideTime, rax
+            Invoke lstrcpyW, lpszTime, pWideTime
+            Invoke _MFP_ConvertStringFree, pWideTime
+            mov rax, TRUE
+        .ELSE
+            mov rax, FALSE
+        .ENDIF
+    .ENDIF
+    
+    ret
+MFPConvertMSTimeToTimeStringW ENDP
 
 ALIGN 8
 ;------------------------------------------------------------------------------

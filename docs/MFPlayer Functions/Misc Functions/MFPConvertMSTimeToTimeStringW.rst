@@ -1,14 +1,14 @@
-.. _MFPConvertMSTimeToTimeString:
+.. _MFPConvertMSTimeToTimeStringW:
 
-============================
-MFPConvertMSTimeToTimeString
-============================
+=============================
+MFPConvertMSTimeToTimeStringW
+=============================
 
 Converts a milliseconds value to a time string, which shows hours, minutes, seconds and milliseconds. 
 
 ::
 
-   MFPConvertMSTimeToTimeString PROTO dwMilliseconds:DWORD, lpszTime:DWORD, dwTimeFormat:DWORD
+   MFPConvertMSTimeToTimeStringW PROTO dwMilliseconds:DWORD, lpszTime:DWORD, dwTimeFormat:DWORD
 
 
 **Parameters**
@@ -26,7 +26,7 @@ TRUE if successful or FALSE otherwise
 
 **Notes**
 
-Ensure the string buffer pointed to by the ``lpszTime`` parameter is at least 16 bytes long.
+Ensure the string buffer pointed to by the ``lpszTime`` parameter is at least 32 bytes long.
 
 
 **See Also**

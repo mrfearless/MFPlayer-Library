@@ -100,7 +100,19 @@ MFPMediaItem_GetMetadata          PROTO pMediaItem:QWORD, ppMetadataStore:QWORD
 MFPMediaItem_SetStreamSink        PROTO pMediaItem:QWORD, dwStreamIndex:DWORD, pMediaSink:QWORD
 
 ; Misc
-MFPConvertMSTimeToTimeString      PROTO dwMilliseconds:DWORD, lpszTime:QWORD, dwTimeFormat:DWORD
+; Misc
+MFPConvertMSTimeToTimeStringA     PROTO dwMilliseconds:DWORD, lpszTime:QWORD, dwTimeFormat:DWORD
+MFPConvertMSTimeToTimeStringW     PROTO dwMilliseconds:DWORD, lpszTime:QWORD, dwTimeFormat:DWORD
+
+IFDEF __UNICODE__
+    MFPMediaPlayer_CreateMediaItem  EQU <MFPMediaPlayer_CreateMediaItemW>
+    MFPMediaItem_GetURL             EQU <MFPMediaItem_GetURLW>
+    MFPConvertMSTimeToTimeString    EQU <MFPConvertMSTimeToTimeStringW>
+ELSE ; ANSI
+    MFPMediaPlayer_CreateMediaItem  EQU <MFPMediaPlayer_CreateMediaItemA>
+    MFPMediaItem_GetURL             EQU <MFPMediaItem_GetURLA>
+    MFPConvertMSTimeToTimeString    EQU <MFPConvertMSTimeToTimeStringA>
+ENDIF
 
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer Structures
