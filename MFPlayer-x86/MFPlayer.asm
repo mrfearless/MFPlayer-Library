@@ -536,8 +536,10 @@ MFP_POSITIONTYPE_100NS          GUID <00000000,0000,0000,<00,00,00,00,00,00,00,0
 
 
 MFP_DIV100                  REAL4 0.01
+MFP_DIV1000                 REAL4 0.001
 MFP_DIV10000                REAL4 0.0001
 MFP_MUL100                  REAL4 100.0
+MFP_MUL1000                 REAL4 1000.0
 
 .CODE
 
@@ -1594,7 +1596,7 @@ ALIGN 8
 ;
 ; Notes:
 ;
-; 100 indicates normal playback speed, 50 indicates half speed, and 200 
+; 1000 indicates normal playback speed, 500 indicates half speed, and 2000 
 ; indicates twice speed, etc.
 ;
 ; Sends a notification to the Media Event callback function as 
@@ -1616,7 +1618,7 @@ MFPMediaPlayer_SetRate PROC pMediaPlayer:DWORD, dwRate:DWORD
     finit
     fwait
     fild dwRate
-    fmul MFP_DIV100
+    fmul MFP_DIV1000 ;MFP_DIV100
     ;fild dw100
     ;fdiv
     fstp fRate
@@ -1648,7 +1650,7 @@ ALIGN 8
 ;
 ; Notes:
 ;
-; 100 indicates normal playback speed, 50 indicates half speed, and 200 
+; 1000 indicates normal playback speed, 500 indicates half speed, and 2000 
 ; indicates twice speed, etc.
 ;
 ; See Also:
@@ -1669,7 +1671,7 @@ MFPMediaPlayer_GetRate PROC USES EBX pMediaPlayer:DWORD, pdwRate:DWORD
         finit
         fwait
         fld fRate 
-        fmul MFP_MUL100
+        fmul MFP_MUL1000 ;MFP_MUL100
         fistp dword ptr dwRate
 
         mov ebx, pdwRate
@@ -1705,7 +1707,7 @@ ALIGN 8
 ;
 ; Notes:
 ;
-; 100 indicates normal playback speed, 50 indicates half speed, and 200 
+; 1000 indicates normal playback speed, 500 indicates half speed, and 2000
 ; indicates twice speed, etc.
 ;
 ; See Also:
@@ -1730,7 +1732,7 @@ MFPMediaPlayer_GetSupportedRates PROC USES EBX pMediaPlayer:DWORD, bForwardDirec
             finit
             fwait
             fld fSlowestRate 
-            fmul MFP_MUL100
+            fmul MFP_MUL1000 ;MFP_MUL100
             fistp dword ptr dwSlowestRate
     
             mov ebx, pdwSlowestRate
@@ -1742,7 +1744,7 @@ MFPMediaPlayer_GetSupportedRates PROC USES EBX pMediaPlayer:DWORD, bForwardDirec
             finit
             fwait
             fld fFastestRate 
-            fmul MFP_MUL100
+            fmul MFP_MUL1000 ;MFP_MUL100
             fistp dword ptr dwFastestRate
     
             mov ebx, pdwFastestRate

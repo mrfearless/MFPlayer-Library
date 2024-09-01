@@ -597,8 +597,10 @@ MFP_POSITIONTYPE_100NS          GUID <00000000,0000,0000,<00,00,00,00,00,00,00,0
 
 
 MFP_DIV100                  REAL4 0.01
+MFP_DIV1000                 REAL4 0.001
 MFP_DIV10000                REAL4 0.0001
 MFP_MUL100                  REAL4 100.0
+MFP_MUL1000                 REAL4 1000.0
 
 .CODE
 
@@ -1623,7 +1625,7 @@ ALIGN 8
 ;
 ; Notes:
 ;
-; 100 indicates normal playback speed, 50 indicates half speed, and 200 
+; 1000 indicates normal playback speed, 500 indicates half speed, and 2000 
 ; indicates twice speed, etc.
 ;
 ; Sends a notification to the Media Event callback function as 
@@ -1645,7 +1647,7 @@ MFPMediaPlayer_SetRate PROC FRAME pMediaPlayer:QWORD, dwRate:DWORD
     finit
     fwait
     fild dwRate
-    fmul MFP_DIV100
+    fmul MFP_DIV1000
     fstp fRate
     
     Invoke IMFPMediaPlayer_SetRate, pMediaPlayer, fRate
@@ -1675,7 +1677,7 @@ ALIGN 8
 ;
 ; Notes:
 ;
-; 100 indicates normal playback speed, 50 indicates half speed, and 200 
+; 1000 indicates normal playback speed, 500 indicates half speed, and 2000 
 ; indicates twice speed, etc.
 ;
 ; See Also:
@@ -1696,8 +1698,8 @@ MFPMediaPlayer_GetRate PROC FRAME USES RBX pMediaPlayer:QWORD, pdwRate:QWORD
         finit
         fwait
         fld fRate 
-        fmul MFP_MUL100
-        fistp dwRate
+        fmul MFP_MUL1000
+        fistp dword ptr dwRate
 
         mov rbx, pdwRate
         mov eax, dwRate
@@ -1732,7 +1734,7 @@ ALIGN 8
 ;
 ; Notes:
 ;
-; 100 indicates normal playback speed, 50 indicates half speed, and 200 
+; 1000 indicates normal playback speed, 500 indicates half speed, and 2000 
 ; indicates twice speed, etc.
 ;
 ; See Also:
@@ -1757,8 +1759,8 @@ MFPMediaPlayer_GetSupportedRates PROC FRAME USES RBX pMediaPlayer:QWORD, bForwar
             finit
             fwait
             fld fSlowestRate 
-            fmul MFP_MUL100
-            fistp dwSlowestRate
+            fmul MFP_MUL1000
+            fistp dword ptr dwSlowestRate
     
             mov rbx, pdwSlowestRate
             mov eax, dwSlowestRate
@@ -1769,8 +1771,8 @@ MFPMediaPlayer_GetSupportedRates PROC FRAME USES RBX pMediaPlayer:QWORD, bForwar
             finit
             fwait
             fld fFastestRate 
-            fmul MFP_MUL100
-            fistp dwFastestRate
+            fmul MFP_MUL1000
+            fistp dword ptr dwFastestRate
     
             mov rbx, pdwFastestRate
             mov eax, dwFastestRate
