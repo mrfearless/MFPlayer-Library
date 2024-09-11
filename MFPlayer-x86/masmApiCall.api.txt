@@ -72,9 +72,15 @@ MFPConvertMSTimeToTimeString,dwMilliseconds,lpszTime,dwTimeFormat
 MFPConvertMSTimeToTimeStringA,dwMilliseconds,lpszTime,dwTimeFormat
 MFPConvertMSTimeToTimeStringW,dwMilliseconds,lpszTime,dwTimeFormat
 
+MFPConvertStringToAnsi,lpszWideString
+MFPConvertStringToWide,lpszAnsiString
+MFPConvertStringFree,lpString
+
 IUnknown_QueryInterface,pThis,riid,ppvObject
 IUnknown_AddRef,pThis
 IUnknown_Release,pThis
+
+MFPMediaItem_StreamTable,pMediaItem,lpdwStreamCount,lpdwStreamTable
 
 ;IMFPMediaPlayerCallback:
 IMFPMediaPlayerCallback_OnMediaPlayerEvent,pThis,pEventHeader

@@ -23,7 +23,6 @@
 .XMM
 .model flat,stdcall
 option casemap:none
-;include \masm32\macros\macros.asm
 
 ;DEBUG32 EQU 1
 ;IFDEF DEBUG32
@@ -66,6 +65,14 @@ ENDIF
 IFNDEF MFPCreateMediaPlayer
 MFPCreateMediaPlayer PROTO pwszURL:DWORD, fStartPlayback:DWORD, creationOptions:DWORD, pCallback:DWORD, hWnd:DWORD, ppMediaPlayer:DWORD
 ENDIF
+IFNDEF RtlCompareMemory
+RtlCompareMemory PROTO Source1:DWORD, Source2:DWORD, dwLength:DWORD
+ENDIF
+IFNDEF PropVariantClear
+PropVariantClear PROTO pvValue:DWORD
+ENDIF
+
+;includelib ntdll.lib
 
 includelib MFPlay.lib
 
@@ -77,10 +84,12 @@ include MFPlayer.inc
 IMFPMediaPlayerInit             PROTO pMediaPlayer:DWORD
 IMFPMediaItemInit               PROTO pMediaItem:DWORD
 
+_MFP_GetMajorType               PROTO pGUID:DWORD
+_MFP_GetAudioSubType            PROTO pGUID:DWORD
+_MFP_GetVideoSubType            PROTO pGUID:DWORD
+
+_MFP_MemoryCompare              PROTO pMemoryAddress1:DWORD, pMemoryAddress2:DWORD, dwMemoryLength:DWORD
 _MFP_utoa_ex                    PROTO uvar:DWORD, pbuffer:DWORD
-_MFP_ConvertStringToAnsi        PROTO lpszWideString:DWORD
-_MFP_ConvertStringToWide        PROTO lpszAnsiString:DWORD
-_MFP_ConvertStringFree          PROTO lpString:DWORD
 _MFP_Convert100NSValueToMSTime  PROTO pvValue:DWORD, pdwMilliseconds:DWORD
 _MFP_ConvertMSTimeTo100NSValue  PROTO pvValue:DWORD, dwMilliseconds:DWORD
 
@@ -153,7 +162,6 @@ IMFPMediaItem_GetPresentationAttribute_Proto     TYPEDEF PROTO STDCALL pThis:DWO
 IMFPMediaItem_GetCharacteristics_Proto           TYPEDEF PROTO STDCALL pThis:DWORD, pCharacteristics:DWORD
 IMFPMediaItem_SetStreamSink_Proto                TYPEDEF PROTO STDCALL pThis:DWORD, dwStreamIndex:DWORD, pMediaSink:DWORD
 IMFPMediaItem_GetMetadata_Proto                  TYPEDEF PROTO STDCALL pThis:DWORD, ppMetadataStore:DWORD
-
 
 ;------------------------------------------------------------------------------
 ; Pointer To Prototypes
@@ -233,6 +241,7 @@ IMFPMediaItem_GetPresentationAttribute_Ptr       TYPEDEF PTR IMFPMediaItem_GetPr
 IMFPMediaItem_GetCharacteristics_Ptr             TYPEDEF PTR IMFPMediaItem_GetCharacteristics_Proto
 IMFPMediaItem_SetStreamSink_Ptr                  TYPEDEF PTR IMFPMediaItem_SetStreamSink_Proto
 IMFPMediaItem_GetMetadata_Ptr                    TYPEDEF PTR IMFPMediaItem_GetMetadata_Proto
+
 
 
 ;------------------------------------------------------------------------------
@@ -335,6 +344,7 @@ IMFPMediaItemVtbl             STRUCT
 IMFPMediaItemVtbl             ENDS
 ENDIF
 
+
 IFNDEF GUID
 GUID        STRUCT
     Data1   DD ?
@@ -373,7 +383,13 @@ PROPVARIANT     STRUCT
     UNION
         hVal LARGE_INTEGER <>
         uhVal ULARGE_INTEGER <>
+        uint64Val QWORD ?
         fltVal FLOAT ?
+        uintVal DWORD ?
+        pwszVal DWORD ?
+        pszVal DWORD ?
+        boolVal DWORD ?
+        puuid DWORD ?
         ; etc
     ENDS
 PROPVARIANT     ENDS
@@ -439,15 +455,22 @@ ENDIF
 IFNDEF MF_E_INVALIDREQUEST
 MF_E_INVALIDREQUEST EQU 0C00D36B2h
 ENDIF
+IFNDEF E_NOINTERFACE
+E_NOINTERFACE EQU 80004002h
+ENDIF
 
 IFNDEF VT_I8
 VT_I8 EQU 20
 ENDIF
 
+
+
 .DATA
 ;------------------------------------------------------------------------------
 ; Function Pointers
 ;------------------------------------------------------------------------------
+szStream                DB "S",0,"t",0,"r",0,"e",0,"a",0,"m",0," ",0,0,0,0,0
+
 
 ; IUnknown
 IUnknown_QueryInterface                    IUnknown_QueryInterface_Ptr 0
@@ -530,20 +553,178 @@ pIMFPMediaPlayerCallback    DWORD sIMFPMediaPlayerCallback
                             DWORD 0 ; count?
 
 
-MFP_POSITIONTYPE_100NS          GUID <00000000,0000,0000,<00,00,00,00,00,00,00,00>>
+MFP_POSITIONTYPE_100NS             GUID <00000000,0000,0000,<00,00,00,00,00,00,00,00>>
+
+MF_SD_LANGUAGE                     GUID <000AF2180h,0BDC2h,0423Ch,<0ABh,0CAh,0F5h,003h,059h,03Bh,0C1h,021h>>
+MF_MT_MAJOR_TYPE                   GUID <048EBA18Eh,0F8C9h,04687h,<0BFh,011h,00Ah,074h,0C9h,0F9h,06Ah,08Fh>>
+MF_MT_SUBTYPE                      GUID <0F7E34C9Ah,042E8h,04714h,<0B7h,04Bh,0CBh,029h,0D7h,02Ch,035h,0E5h>>
+MF_MT_AUDIO_AVG_BYTES_PER_SECOND   GUID <01AAB75C8h,0CFEFh,0451Ch,<0ABh,095h,0ACh,003h,04Bh,08Eh,017h,031h>>
+MF_MT_AUDIO_NUM_CHANNELS           GUID <037E48BF5h,0645Eh,04C5Bh,<089h,0DEh,0ADh,0A9h,0E2h,09Bh,069h,06Ah>>
+MF_MT_AUDIO_CHANNEL_MASK           GUID <055FB5765h,0644Ah,04CAFh,<084h,079h,093h,089h,083h,0BBh,015h,088h>>
+MF_MT_AUDIO_BITS_PER_SAMPLE        GUID <0F2DEB57Fh,040FAh,04764h,<0AAh,033h,0EDh,04Fh,02Dh,01Fh,0F6h,069h>>
+MF_MT_AUDIO_SAMPLES_PER_SECOND     GUID <05FAEEAE7h,00290h,04C31h,<09Eh,08Ah,0C5h,034h,0F6h,08Dh,09Dh,0BAh>>
+MF_MT_AVG_BITRATE                  GUID <020332624h,0FB0Dh,04D9Eh,<0BDh,00Dh,0CBh,0F6h,078h,06Ch,010h,02Eh>>
+MF_MT_FRAME_SIZE                   GUID <01652C33Dh,0D6B2h,04012h,<0B8h,034h,072h,003h,008h,049h,0A3h,07Dh>>
+MF_MT_FRAME_RATE                   GUID <0C459A2E8h,03D2Ch,04E44h,<0B1h,032h,0FEh,0E5h,015h,06Ch,07Bh,0B0h>>
+MF_MT_INTERLACE_MODE               GUID <0E2724BB8h,0E676h,04806h,<0B4h,0B2h,0A8h,0D6h,0EFh,0B4h,04Ch,0CDh>>
+
+; Media Major Types: https://www.magnumdb.com/search?q=filename%3A%22mfapi.h%22+MFMediaType_*
+MFMediaType_Default                GUID <081A412E6h,08103h,04B06h,<085h,07Fh,018h,062h,078h,010h,024h,0ACh>>
+MFMediaType_Audio                  GUID <073647561h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFMediaType_Video                  GUID <073646976h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFMediaType_Protected              GUID <07B4B6FE6h,09D04h,04494h,<0BEh,014h,07Eh,00Bh,0D0h,076h,0C8h,0E4h>>
+MFMediaType_SAMI                   GUID <0E69669A0h,03DCDh,040CBh,<09Eh,02Eh,037h,008h,038h,07Ch,006h,016h>>
+MFMediaType_Script                 GUID <072178C22h,0E45Bh,011D5h,<0BCh,02Ah,000h,0B0h,0D0h,0F3h,0F4h,0ABh>>
+MFMediaType_Image                  GUID <072178C23h,0E45Bh,011D5h,<0BCh,02Ah,000h,0B0h,0D0h,0F3h,0F4h,0ABh>>
+MFMediaType_HTML                   GUID <072178C24h,0E45Bh,011D5h,<0BCh,02Ah,000h,0B0h,0D0h,0F3h,0F4h,0ABh>>
+MFMediaType_Binary                 GUID <072178C25h,0E45Bh,011D5h,<0BCh,02Ah,000h,0B0h,0D0h,0F3h,0F4h,0ABh>>
+MFMediaType_FileTransfer           GUID <072178C26h,0E45Bh,011D5h,<0BCh,02Ah,000h,0B0h,0D0h,0F3h,0F4h,0ABh>>
+MFMediaType_Stream                 GUID <0E436EB83h,0524Fh,011CEh,<09Fh,053h,000h,020h,0AFh,00Bh,0A7h,070h>>
+MFMediaType_MultiplexedFrames      GUID <06EA542B0h,0281Fh,04231h,<0A4h,064h,0FEh,02Fh,050h,022h,050h,01Ch>>
+MFMediaType_Subtitle               GUID <0A6D13581h,0ED50h,04E65h,<0AEh,008h,026h,006h,055h,076h,0AAh,0CCh>>
+MFMediaType_Perception             GUID <0597FF6F9h,06EA2h,04670h,<085h,0B4h,0EAh,084h,007h,03Fh,0E9h,040h>>
+MFMediaType_Metadata               GUID <02C8FA20Ch,082BBh,04782h,<090h,0A0h,098h,0A2h,0A5h,0BDh,08Eh,0F8h>>
+
+; Audio Subtypes: https://www.magnumdb.com/search?q=filename%3A%22mfapi.h%22+MFAudioFormat_*
+MFAudioFormat_Base                 GUID <000000000h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_PCM                  GUID <000000001h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_Float                GUID <000000003h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_DTS                  GUID <000000008h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_Dolby_AC3_SPDIF      GUID <000000092h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_DRM                  GUID <000000009h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_WMAudioV8            GUID <000000161h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_WMAudioV9            GUID <000000162h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_WMAudio_Lossless     GUID <000000163h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_WMASPDIF             GUID <000000164h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_MSP1                 GUID <00000000Ah,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_MP3                  GUID <000000055h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_MPEG                 GUID <000000050h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_AAC                  GUID <000001610h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_ADTS                 GUID <000001600h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_AMR_NB               GUID <000007361h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_AMR_WB               GUID <000007362h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_AMR_WP               GUID <000007363h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_FLAC                 GUID <00000F1ACh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_ALAC                 GUID <000006C61h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_Opus                 GUID <00000704Fh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_Dolby_AC4            GUID <00000AC40h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFAudioFormat_Dolby_AC3            GUID <0E06D802Ch,0DB46h,011CFh,<0B4h,0D1h,000h,080h,05Fh,06Ch,0BBh,0EAh>>
+MFAudioFormat_Dolby_DDPlus         GUID <0A7FB87AFh,02D02h,042FBh,<0A4h,0D4h,005h,0CDh,093h,084h,03Bh,0DDh>>
+MFAudioFormat_Dolby_AC4_V1         GUID <036B7927Ch,03D87h,04A2Ah,<091h,096h,0A2h,01Ah,0D9h,0E9h,035h,0E6h>>
+MFAudioFormat_Dolby_AC4_V2         GUID <07998B2A0h,017DDh,049B6h,<08Dh,0FAh,09Bh,027h,085h,052h,0A2h,0ACh>>
+MFAudioFormat_Dolby_AC4_V1_ES      GUID <09D8DCCC6h,0D156h,04FB8h,<097h,09Ch,0A8h,05Bh,0E7h,0D2h,01Dh,0FAh>>
+MFAudioFormat_Dolby_AC4_V2_ES      GUID <07E58C9F9h,0B070h,045F4h,<08Ch,0CDh,0A9h,09Ah,004h,017h,0C1h,0ACh>>
+MFAudioFormat_MPEGH                GUID <07C13C441h,0EBF8h,04931h,<0B6h,078h,080h,00Bh,019h,024h,022h,036h>>
+MFAudioFormat_MPEGH_ES             GUID <019EE97FEh,01BE0h,04255h,<0A8h,076h,0E9h,09Fh,053h,0A4h,02Ah,0E3h>>
+MFAudioFormat_Vorbis               GUID <08D2FD10Bh,05841h,04A6Bh,<089h,005h,058h,08Fh,0ECh,01Ah,0DEh,0D9h>>
+MFAudioFormat_DTS_RAW              GUID <0E06D8033h,0DB46h,011CFh,<0B4h,0D1h,000h,080h,05Fh,06Ch,0BBh,0EAh>>
+MFAudioFormat_DTS_HD               GUID <0A2E58EB7h,00FA9h,048BBh,<0A4h,00Ch,0FAh,00Eh,015h,06Dh,006h,045h>>
+MFAudioFormat_DTS_XLL              GUID <045B37C1Bh,08C70h,04E59h,<0A7h,0BEh,0A1h,0E4h,02Ch,081h,0C8h,00Dh>>
+MFAudioFormat_DTS_LBR              GUID <0C2FE6F0Ah,04E3Ch,04DF1h,<09Bh,060h,050h,086h,030h,091h,0E4h,0B9h>>
+MFAudioFormat_DTS_UHD              GUID <087020117h,0ACE3h,042DEh,<0B7h,03Eh,0C6h,056h,070h,062h,063h,0F8h>>
+MFAudioFormat_DTS_UHDY             GUID <09B9CCA00h,091B9h,04CCCh,<088h,03Ah,08Fh,078h,07Ah,0C3h,0CCh,086h>>
+MFAudioFormat_Float_SpatialObjects GUID <0FA39CD94h,0BC64h,04AB1h,<09Bh,071h,0DCh,0D0h,09Dh,05Ah,07Eh,07Ah>>
+MFAudioFormat_LPCM                 GUID <0E06D8032h,0DB46h,011CFh,<0B4h,0D1h,000h,080h,05Fh,06Ch,0BBh,0EAh>>
+MFAudioFormat_PCM_HDCP             GUID <0A5E7FF01h,08411h,04ACCh,<0A8h,065h,05Fh,049h,041h,028h,08Dh,080h>>
+MFAudioFormat_Dolby_AC3_HDCP       GUID <097663A80h,08FFBh,04445h,<0A6h,0BAh,079h,02Dh,090h,08Fh,049h,07Fh>>
+MFAudioFormat_AAC_HDCP             GUID <0419BCE76h,08B72h,0400Fh,<0ADh,0EBh,084h,0B5h,07Dh,063h,048h,04Dh>>
+MFAudioFormat_ADTS_HDCP            GUID <0DA4963A3h,014D8h,04DCFh,<092h,0B7h,019h,03Eh,0B8h,043h,063h,0DBh>>
+MFAudioFormat_Base_HDCP            GUID <03884B5BCh,0E277h,043FDh,<098h,03Dh,003h,08Ah,0A8h,0D9h,0B6h,005h>>
+
+; Video Subtypes: https://www.magnumdb.com/search?q=filename%3A%22mfapi.h%22+MFVideoFormat_*
+MFVideoFormat_Base                 GUID <000000000h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+
+MFVideoFormat_MP43                 GUID <03334504Dh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_MP4S                 GUID <05334504Dh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_M4S2                 GUID <03253344Dh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_MP4V                 GUID <05634504Dh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_WMV1                 GUID <031564D57h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_WMV2                 GUID <032564D57h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_WMV3                 GUID <033564D57h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_WVC1                 GUID <031435657h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_MSS1                 GUID <03153534Dh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_MSS2                 GUID <03253534Dh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_MPG1                 GUID <03147504Dh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_DVSL                 GUID <06C737664h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_DVSD                 GUID <064737664h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_DVHD                 GUID <064687664h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_DV25                 GUID <035327664h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_DV50                 GUID <030357664h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_DVH1                 GUID <031687664h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_DVC                  GUID <020637664h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_H264                 GUID <034363248h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_H265                 GUID <035363248h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_MJPG                 GUID <047504A4Dh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_420O                 GUID <04F303234h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_HEVC                 GUID <043564548h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_HEVC_ES              GUID <053564548h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_VP80                 GUID <030385056h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_VP90                 GUID <030395056h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_ORAW                 GUID <05741524Fh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_H263                 GUID <033363248h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_VP10                 GUID <030315056h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_AV1                  GUID <031305641h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_Theora               GUID <06F656874h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_H264_ES              GUID <03F40F4F0h,05622h,04FF8h,<0B6h,0D8h,0A1h,07Ah,058h,04Bh,0EEh,05Eh>>
+MFVideoFormat_MPEG2                GUID <0E06D8026h,0DB46h,011CFh,<0B4h,0D1h,000h,080h,05Fh,06Ch,0BBh,0EAh>>
+MFVideoFormat_H264_HDCP            GUID <05D0CE9DDh,09817h,049DAh,<0BDh,0FDh,0F5h,0F5h,0B9h,08Fh,018h,0A6h>>
+MFVideoFormat_HEVC_HDCP            GUID <03CFE0FE6h,005C4h,047DCh,<09Dh,070h,04Bh,0DBh,029h,059h,072h,00Fh>>
+MFVideoFormat_Base_HDCP            GUID <0EAC3B9D5h,0BD14h,04237h,<08Fh,01Fh,0BAh,0B4h,028h,0E4h,093h,012h>>
+MFVideoFormat_MPG2                 GUID <0E06D8026h,0DB46h,011CFh,<0B4h,0D1h,000h,080h,05Fh,06Ch,0BBh,0EAh>>
+
+; Pixel Formats:
+MFVideoFormat_RGB32                GUID <000000016h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_ARGB32               GUID <000000015h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_RGB24                GUID <000000014h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_RGB555               GUID <000000018h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_RGB565               GUID <000000017h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_RGB8                 GUID <000000029h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_A2R10G10B10          GUID <00000001Fh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_A16B16G16R16F        GUID <000000071h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_L8                   GUID <000000032h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_L16                  GUID <000000051h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_D16                  GUID <000000050h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_AI44                 GUID <034344941h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_AYUV                 GUID <056555941h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_YUY2                 GUID <032595559h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_YVYU                 GUID <055595659h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_YVU9                 GUID <039555659h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_UYVY                 GUID <059565955h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_NV11                 GUID <03131564Eh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_NV12                 GUID <03231564Eh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_NV21                 GUID <03132564Eh,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_YV12                 GUID <032315659h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_I420                 GUID <030323449h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_IYUV                 GUID <056555949h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_Y210                 GUID <030313259h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_Y216                 GUID <036313259h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_Y410                 GUID <030313459h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_Y416                 GUID <036313459h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_Y41P                 GUID <050313459h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_Y41T                 GUID <054313459h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_Y42T                 GUID <054323459h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_P210                 GUID <030313250h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_P216                 GUID <036313250h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_P010                 GUID <030313050h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_P016                 GUID <036313050h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_v210                 GUID <030313276h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_v216                 GUID <036313276h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
+MFVideoFormat_v410                 GUID <030313476h,00000h,00010h,<080h,000h,000h,0AAh,000h,038h,09Bh,071h>>
 
 
-
+; https://gix.github.io/media-types/
 
 MFP_DIV100                  REAL4 0.01
+MFP_DIV125                  REAL4 0.008
 MFP_DIV1000                 REAL4 0.001
 MFP_DIV10000                REAL4 0.0001
 MFP_MUL100                  REAL4 100.0
 MFP_MUL1000                 REAL4 1000.0
+R1                          REAL4 1.0
 
 .CODE
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_Init
 ;
@@ -642,7 +823,7 @@ MFPMediaPlayer_Init_Exit:
 
 MFPMediaPlayer_Init ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_Free
 ;
@@ -687,7 +868,7 @@ MFPMediaPlayer_Free PROC USES EBX ppMediaPlayer:DWORD
     ret
 MFPMediaPlayer_Free ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_Play
 ;
@@ -771,7 +952,7 @@ MFPMediaPlayer_Play PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_Play ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_Pause
 ;
@@ -828,7 +1009,7 @@ MFPMediaPlayer_Pause PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_Pause ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_Stop
 ;
@@ -881,7 +1062,7 @@ MFPMediaPlayer_Stop PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_Stop ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_Step
 ;
@@ -965,7 +1146,7 @@ MFPMediaPlayer_Step PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_Step ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_Toggle
 ;
@@ -1021,7 +1202,7 @@ MFPMediaPlayer_Toggle PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_Toggle ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetState
 ;
@@ -1068,7 +1249,7 @@ MFPMediaPlayer_GetState PROC USES EBX pMediaPlayer:DWORD, pState:DWORD
     ret
 MFPMediaPlayer_GetState ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_ClearMediaItem
 ;
@@ -1112,7 +1293,7 @@ MFPMediaPlayer_ClearMediaItem PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_ClearMediaItem ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetMediaItem
 ;
@@ -1153,7 +1334,7 @@ MFPMediaPlayer_SetMediaItem PROC pMediaPlayer:DWORD, pMediaItem:DWORD
     ret
 MFPMediaPlayer_SetMediaItem ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetMediaItem
 ;
@@ -1193,7 +1374,7 @@ MFPMediaPlayer_GetMediaItem PROC pMediaPlayer:DWORD, ppMediaItem:DWORD
     ret
 MFPMediaPlayer_GetMediaItem ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_CreateMediaItemA
 ;
@@ -1240,14 +1421,14 @@ MFPMediaPlayer_CreateMediaItemA PROC USES EBX pMediaPlayer:DWORD, lpszMediaItem:
     
     mov lpszWideMediaItem, 0
     
-    Invoke _MFP_ConvertStringToWide, lpszMediaItem
+    Invoke MFPConvertStringToWide, lpszMediaItem
     mov lpszWideMediaItem, eax
 
     mov pMediaItem, 0
     Invoke IMFPMediaPlayer_CreateMediaItemFromURL, pMediaPlayer, lpszWideMediaItem, TRUE, dwUserData, Addr pMediaItem
     .IF eax == S_OK
         .IF lpszWideMediaItem != 0
-            Invoke _MFP_ConvertStringFree, lpszWideMediaItem
+            Invoke MFPConvertStringFree, lpszWideMediaItem
         .ENDIF
         .IF ppMediaItem != 0
             mov ebx, ppMediaItem
@@ -1257,7 +1438,7 @@ MFPMediaPlayer_CreateMediaItemA PROC USES EBX pMediaPlayer:DWORD, lpszMediaItem:
         mov eax, TRUE
     .ELSE
         .IF lpszWideMediaItem != 0
-            Invoke _MFP_ConvertStringFree, lpszWideMediaItem
+            Invoke MFPConvertStringFree, lpszWideMediaItem
         .ENDIF
         .IF ppMediaItem != 0
             mov ebx, ppMediaItem
@@ -1269,7 +1450,7 @@ MFPMediaPlayer_CreateMediaItemA PROC USES EBX pMediaPlayer:DWORD, lpszMediaItem:
     ret
 MFPMediaPlayer_CreateMediaItemA ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_CreateMediaItemW
 ;
@@ -1333,7 +1514,7 @@ MFPMediaPlayer_CreateMediaItemW PROC USES EBX pMediaPlayer:DWORD, lpszMediaItem:
     ret
 MFPMediaPlayer_CreateMediaItemW ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_CreateMediaItemFromObject
 ;
@@ -1398,7 +1579,7 @@ MFPMediaPlayer_CreateMediaItemFromObject PROC pMediaPlayer:DWORD, pIUnknownObj:D
     ret
 MFPMediaPlayer_CreateMediaItemFromObject ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetPosition
 ;
@@ -1452,7 +1633,7 @@ MFPMediaPlayer_SetPosition PROC USES EBX pMediaPlayer:DWORD, dwMilliseconds:DWOR
     ret
 MFPMediaPlayer_SetPosition ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetPosition
 ;
@@ -1511,7 +1692,7 @@ MFPMediaPlayer_GetPosition PROC USES EBX pMediaPlayer:DWORD, pdwMilliseconds:DWO
     ret
 MFPMediaPlayer_GetPosition ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetDuration
 ;
@@ -1578,7 +1759,7 @@ MFPMediaPlayer_GetDuration PROC USES EBX pMediaPlayer:DWORD, pdwMilliseconds:DWO
     ret
 MFPMediaPlayer_GetDuration ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetRate
 ;
@@ -1632,7 +1813,7 @@ MFPMediaPlayer_SetRate PROC pMediaPlayer:DWORD, dwRate:DWORD
     ret
 MFPMediaPlayer_SetRate ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetRate
 ;
@@ -1685,7 +1866,7 @@ MFPMediaPlayer_GetRate PROC USES EBX pMediaPlayer:DWORD, pdwRate:DWORD
     ret
 MFPMediaPlayer_GetRate ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetSupportedRates
 ;
@@ -1759,7 +1940,7 @@ MFPMediaPlayer_GetSupportedRates PROC USES EBX pMediaPlayer:DWORD, bForwardDirec
     ret
 MFPMediaPlayer_GetSupportedRates ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetVolume
 ;
@@ -1811,7 +1992,7 @@ MFPMediaPlayer_GetVolume PROC USES EBX pMediaPlayer:DWORD, pdwVolume:DWORD
     ret
 MFPMediaPlayer_GetVolume ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetVolume
 ;
@@ -1867,7 +2048,7 @@ MFPMediaPlayer_SetVolume PROC pMediaPlayer:DWORD, dwVolume:DWORD
     ret
 MFPMediaPlayer_SetVolume ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetBalance
 ;
@@ -1920,7 +2101,7 @@ MFPMediaPlayer_GetBalance PROC pMediaPlayer:DWORD, pdwBalance:DWORD
     ret
 MFPMediaPlayer_GetBalance ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetBalance
 ;
@@ -1980,7 +2161,7 @@ MFPMediaPlayer_SetBalance PROC pMediaPlayer:DWORD, dwBalance:SDWORD
     ret
 MFPMediaPlayer_SetBalance ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetMute
 ;
@@ -2020,7 +2201,7 @@ MFPMediaPlayer_GetMute PROC pMediaPlayer:DWORD, pbMute:DWORD
     ret
 MFPMediaPlayer_GetMute ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetMute
 ;
@@ -2059,7 +2240,7 @@ MFPMediaPlayer_SetMute PROC pMediaPlayer:DWORD, bMute:DWORD
     ret
 MFPMediaPlayer_SetMute ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetNativeVideoSize
 ;
@@ -2103,7 +2284,7 @@ MFPMediaPlayer_GetNativeVideoSize PROC pMediaPlayer:DWORD, pszVideo:DWORD, pszAR
     ret
 MFPMediaPlayer_GetNativeVideoSize ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetIdealVideoSize
 ;
@@ -2147,7 +2328,7 @@ MFPMediaPlayer_GetIdealVideoSize PROC pMediaPlayer:DWORD, pszMin:DWORD, pszMax:D
     ret
 MFPMediaPlayer_GetIdealVideoSize ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetVideoSourceRect
 ;
@@ -2193,7 +2374,7 @@ MFPMediaPlayer_SetVideoSourceRect PROC pMediaPlayer:DWORD, pnrcSource:DWORD
     ret
 MFPMediaPlayer_SetVideoSourceRect ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetVideoSourceRect
 ;
@@ -2236,7 +2417,7 @@ MFPMediaPlayer_GetVideoSourceRect PROC pMediaPlayer:DWORD, pnrcSource:DWORD
     ret
 MFPMediaPlayer_GetVideoSourceRect ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetVideoWindow
 ;
@@ -2276,7 +2457,7 @@ MFPMediaPlayer_GetVideoWindow PROC pMediaPlayer:DWORD, phwndVideo:DWORD
     ret
 MFPMediaPlayer_GetVideoWindow ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_UpdateVideo
 ;
@@ -2319,7 +2500,7 @@ MFPMediaPlayer_UpdateVideo PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_UpdateVideo ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetBorderColor
 ;
@@ -2359,7 +2540,7 @@ MFPMediaPlayer_SetBorderColor PROC pMediaPlayer:DWORD, Color:DWORD
     ret
 MFPMediaPlayer_SetBorderColor ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetBorderColor
 ;
@@ -2399,7 +2580,7 @@ MFPMediaPlayer_GetBorderColor PROC pMediaPlayer:DWORD, pColor:DWORD
     ret
 MFPMediaPlayer_GetBorderColor ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_InsertEffect
 ;
@@ -2448,7 +2629,7 @@ MFPMediaPlayer_InsertEffect PROC pMediaPlayer:DWORD, pEffect:DWORD, bOptional:DW
     ret
 MFPMediaPlayer_InsertEffect ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_RemoveEffect
 ;
@@ -2489,7 +2670,7 @@ MFPMediaPlayer_RemoveEffect PROC pMediaPlayer:DWORD, pEffect:DWORD
     ret
 MFPMediaPlayer_RemoveEffect ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_RemoveAllEffects
 ;
@@ -2528,7 +2709,7 @@ MFPMediaPlayer_RemoveAllEffects PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_RemoveAllEffects ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_Shutdown
 ;
@@ -2568,7 +2749,7 @@ MFPMediaPlayer_Shutdown PROC pMediaPlayer:DWORD
     ret
 MFPMediaPlayer_Shutdown ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_SetAspectRatioMode
 ;
@@ -2615,7 +2796,7 @@ MFPMediaPlayer_SetAspectRatioMode PROC pMediaPlayer:DWORD, dwAspectRatioMode:DWO
     ret
 MFPMediaPlayer_SetAspectRatioMode ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaPlayer_GetAspectRatioMode
 ;
@@ -2667,7 +2848,7 @@ MFPMediaPlayer_GetAspectRatioMode ENDP
 ; MFPMediaItem Functions
 ;==============================================================================
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_QueryInterface
 ; 
@@ -2726,7 +2907,7 @@ MFPMediaItem_QueryInterface PROC USES EBX pMediaItem:DWORD, riid:DWORD, ppvObjec
     ret
 MFPMediaItem_QueryInterface ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_AddRef
 ; 
@@ -2773,7 +2954,7 @@ MFPMediaItem_AddRef PROC USES EBX pMediaItem:DWORD
     ret
 MFPMediaItem_AddRef ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_Release
 ;
@@ -2815,7 +2996,7 @@ MFPMediaItem_Release PROC USES EBX pMediaItem:DWORD
     ret
 MFPMediaItem_Release ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetMediaPlayer
 ; 
@@ -2858,7 +3039,7 @@ MFPMediaItem_GetMediaPlayer PROC USES EBX pMediaItem:DWORD, ppMediaPlayer:DWORD
     ret
 MFPMediaItem_GetMediaPlayer ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetURLA
 ; 
@@ -2896,7 +3077,7 @@ MFPMediaItem_GetURLA PROC USES EBX pMediaItem:DWORD, ppszURL:DWORD
     Invoke [ebx].IMFPMediaItemVtbl.GetURL, pMediaItem, Addr ppwszURL
     .IF eax == S_OK
         ; convert to Ansi
-        Invoke _MFP_ConvertStringToAnsi, ppwszURL
+        Invoke MFPConvertStringToAnsi, ppwszURL
         mov ebx, ppszURL
         mov [ebx], eax
         Invoke CoTaskMemFree, ppwszURL
@@ -2907,7 +3088,7 @@ MFPMediaItem_GetURLA PROC USES EBX pMediaItem:DWORD, ppszURL:DWORD
     ret
 MFPMediaItem_GetURLA ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetURLW
 ; 
@@ -2964,7 +3145,7 @@ MFPMediaItem_GetURLW PROC USES EBX pMediaItem:DWORD, ppszURL:DWORD
     ret
 MFPMediaItem_GetURLW ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetObject
 ; 
@@ -3009,7 +3190,7 @@ MFPMediaItem_GetObject PROC USES EBX pMediaItem:DWORD, ppIUnknown:DWORD
     ret
 MFPMediaItem_GetObject ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_SetUserData
 ; 
@@ -3052,7 +3233,7 @@ MFPMediaItem_SetUserData PROC USES EBX pMediaItem:DWORD, dwUserData:DWORD
     ret
 MFPMediaItem_SetUserData ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetUserData
 ; 
@@ -3096,7 +3277,7 @@ MFPMediaItem_GetUserData PROC USES EBX pMediaItem:DWORD, pdwUserData:DWORD
     ret
 MFPMediaItem_GetUserData ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_SetStartStopPosition
 ; 
@@ -3160,7 +3341,7 @@ MFPMediaItem_SetStartStopPosition PROC USES EBX pMediaItem:DWORD, dwStartValue:D
     ret
 MFPMediaItem_SetStartStopPosition ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetStartStopPosition
 ; 
@@ -3247,7 +3428,7 @@ MFPMediaItem_GetStartStopPosition PROC USES EBX pMediaItem:DWORD, pdwStartValue:
     ret
 MFPMediaItem_GetStartStopPosition ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_HasVideo
 ; 
@@ -3291,7 +3472,7 @@ MFPMediaItem_HasVideo PROC USES EBX pMediaItem:DWORD, pbHasVideo:DWORD, pbSelect
     ret
 MFPMediaItem_HasVideo ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_HasAudio
 ; 
@@ -3335,7 +3516,7 @@ MFPMediaItem_HasAudio PROC USES EBX pMediaItem:DWORD, pbHasAudio:DWORD, pbSelect
     ret
 MFPMediaItem_HasAudio ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_IsProtected
 ; 
@@ -3377,7 +3558,7 @@ MFPMediaItem_IsProtected PROC USES EBX pMediaItem:DWORD, pbProtected:DWORD
     ret
 MFPMediaItem_IsProtected ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetDuration
 ; 
@@ -3444,7 +3625,7 @@ MFPMediaItem_GetDuration PROC USES EBX pMediaItem:DWORD, pdwMilliseconds:DWORD
     ret
 MFPMediaItem_GetDuration ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetNumberOfStreams
 ; 
@@ -3486,7 +3667,7 @@ MFPMediaItem_GetNumberOfStreams PROC USES EBX pMediaItem:DWORD, pdwStreamCount:D
     ret
 MFPMediaItem_GetNumberOfStreams ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_SetStreamSelection
 ; 
@@ -3532,7 +3713,7 @@ MFPMediaItem_SetStreamSelection PROC USES EBX pMediaItem:DWORD, dwStreamIndex:DW
     ret
 MFPMediaItem_SetStreamSelection ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetStreamSelection
 ; 
@@ -3575,7 +3756,7 @@ MFPMediaItem_GetStreamSelection PROC USES EBX pMediaItem:DWORD, dwStreamIndex:DW
     ret
 MFPMediaItem_GetStreamSelection ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetStreamAttribute
 ; 
@@ -3624,7 +3805,7 @@ MFPMediaItem_GetStreamAttribute PROC USES EBX pMediaItem:DWORD, dwStreamIndex:DW
     ret
 MFPMediaItem_GetStreamAttribute ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetPresentationAttribute
 ; 
@@ -3671,7 +3852,7 @@ MFPMediaItem_GetPresentationAttribute PROC USES EBX pMediaItem:DWORD, guidMFAttr
     ret
 MFPMediaItem_GetPresentationAttribute ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetCharacteristics
 ; 
@@ -3719,7 +3900,7 @@ MFPMediaItem_GetCharacteristics PROC USES EBX pMediaItem:DWORD, pCharacteristics
     ret
 MFPMediaItem_GetCharacteristics ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_SetStreamSink
 ; 
@@ -3784,7 +3965,7 @@ MFPMediaItem_SetStreamSink PROC USES EBX pMediaItem:DWORD, dwStreamIndex:DWORD, 
     ret
 MFPMediaItem_SetStreamSink ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPMediaItem_GetMetadata
 ; 
@@ -3836,7 +4017,7 @@ MFPMediaItem_GetMetadata ENDP
 ;==============================================================================
 
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; IMFPMediaPlayerInit
 ;
@@ -3971,7 +4152,7 @@ IMFPMediaPlayerInit_Exit:
 
 IMFPMediaPlayerInit ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; IMFPMediaItemInit
 ;
@@ -4076,155 +4257,822 @@ IMFPMediaItemInit ENDP
 
 
 ;==============================================================================
-; Internal Functions
+; Media Information Functions
 ;==============================================================================
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
-; _MFP_Convert100NSValueToMSTime
+; MFPMediaItem_StreamTable
 ;
-; Converts PROPVARIANT nanoseconds value to milliseconds.
+; Creates a table of stream records.
 ;
 ; Parameters:
 ;
-; * pvValue - pointer to PROPVARIANT that holds the nanosecond value.
+; * pMediaItem - A pointer to the Media Item (IMFPMediaItem) object.
 ;
-; * pdwMilliseconds - pointer to a DWORD to store the converted milliseconds.
+; * lpdwStreamCount - A pointer to a DWORD variable used to store the steam 
+;   count of the media item.
+;
+; * lpdwStreamTable - A pointer to a DWORD variable used to store the pointer
+;   to the Stream Table - An array of MFP_STREAM_RECORD stream records.
 ;
 ; Returns:
 ;
-; -1 if there is an error, otherwise returns the milliseconds value in eax.
+; TRUE if successful or FALSE otherwise.
+;
+; Notes:
+;
+; Automatically frees previously allocated StreamTable
 ;
 ; See Also:
 ;
-; _MFP_ConvertMSTimeTo100NSValue, ConvertMSTimeToTimeString
+; _MFP_GetMajorType, _MFP_GetAudioSubType, _MFP_GetVideoSubType
 ;
 ;------------------------------------------------------------------------------
-_MFP_Convert100NSValueToMSTime PROC USES EBX pvValue:DWORD, pdwMilliseconds:DWORD
-    LOCAL qwTime:QWORD
-    LOCAL dwTimeMS:DWORD
-    ;LOCAL dw100NSToMS:DWORD; DD 10000
+MFPMediaItem_StreamTable PROC USES EBX EDX pMediaItem:DWORD, lpdwStreamCount:DWORD, lpdwStreamTable:DWORD
+    LOCAL dwStreamCount:DWORD
+    LOCAL pStreamTable:DWORD
+    LOCAL pStreamRecord:DWORD
+    LOCAL nStreamRecord:DWORD
+    LOCAL dwStreamTableSize:DWORD
+    LOCAL nStream:DWORD
+    LOCAL pvValue:PROPVARIANT
+    LOCAL pGUID:DWORD
+    LOCAL dwMajorType:DWORD
+    LOCAL dwBitratekbps:DWORD
+    LOCAL dwfps:DWORD
+    LOCAL dwfpsnum:DWORD
+    LOCAL dwfpsden:DWORD
+    LOCAL lpszStreamName:DWORD
+    LOCAL lpszStreamLang:DWORD
+    LOCAL pwszStreamNumber:DWORD
+    LOCAL pwszStringLang:DWORD
+    LOCAL dwStringLangLength:DWORD
+    LOCAL szStreamNumber[8]:BYTE
+    
+    .IF pMediaItem == 0
+        jmp MFPMediaItem_StreamTable_Error
+    .ENDIF
 
-    IFDEF DEBUG32
-    PrintText '_MFP_Convert100NSValueToMSTime'
-    ENDIF
-
-    .IF pvValue == 0 || pdwMilliseconds == 0
-        mov eax, -1
-        ret
+    ;--------------------------------------------------------------------------
+    ; Get number of streams in media item and allocate memory for the Stream
+    ; Table / array of MFP_STREAM_RECORD records.
+    ;--------------------------------------------------------------------------
+    Invoke MFPMediaItem_GetNumberOfStreams, pMediaItem, Addr dwStreamCount
+    mov eax, dwStreamCount
+    mov ebx, SIZEOF MFP_STREAM_RECORD
+    mul ebx
+    mov dwStreamTableSize, eax
+    
+    .IF lpdwStreamTable != 0
+        mov ebx, lpdwStreamTable
+        mov eax, [ebx]
+        mov pStreamTable, eax
+        .IF pStreamTable != 0
+            Invoke GlobalFree, pStreamTable
+            mov pStreamTable, 0
+        .ENDIF
     .ENDIF
     
-    ; If high word of pvValue is >= 10000 then
-    ; div wont be accurate, so most we return
-    ; is -2 (4294967294 | FFFFFFFEh): 49d 17:02:47.29
-    ;  (-1 is used for errors)
-    mov ebx, pvValue
-    mov eax, dword ptr [ebx].PROPVARIANT.hVal.HighPart
-    .IF sdword ptr eax >= 10000d
+    Invoke GlobalAlloc, GMEM_FIXED or GMEM_ZEROINIT, dwStreamTableSize
+    .IF eax == NULL
         IFDEF DEBUG32
-        PrintText 'eax >= 10000d'
+        PrintText 'MFPMediaItem_StreamTable::GlobalAlloc Error'
         ENDIF
-        mov eax, -2 ; (FFFFFFFEh): 49d 17:02:47.29
-        ret
+        jmp MFPMediaItem_StreamTable_Error
     .ENDIF
+    mov pStreamTable, eax
+    mov pStreamRecord, eax
     
-    ; Convert 100ns units to milliseconds
-    ;mov eax, 10000d
-    ;mov dw100NSToMS, eax
-    mov ebx, pvValue
-    mov eax, dword ptr [ebx].PROPVARIANT.hVal.LowPart
-    mov dword ptr [qwTime+0], eax
-    mov eax, dword ptr [ebx].PROPVARIANT.hVal.HighPart
-    mov dword ptr [qwTime+4], eax
+    ;--------------------------------------------------------------------------
+    ; For each stream number, get stream attributes and information and store
+    ; in the corresponding MFP_STREAM_RECORD.
+    ;--------------------------------------------------------------------------
+
+    mov eax, 0
+    mov nStream, 0
+    .WHILE eax < dwStreamCount
+        
+        IFDEF DEBUG32
+        PrintDec nStream
+        ENDIF
+        
+        ; StreamID
+        mov ebx, pStreamRecord
+        mov eax, nStream
+        mov [ebx].MFP_STREAM_RECORD.dwStreamID, eax
+        
+        ; Stream Selected
+        Invoke MFPMediaItem_GetStreamSelection, pMediaItem, nStream, Addr [ebx].MFP_STREAM_RECORD.bSelected
+        
+        ; Major Type
+        Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_MAJOR_TYPE, Addr pvValue
+        lea ebx, pvValue
+        mov eax, [ebx].PROPVARIANT.puuid
+        mov pGUID, eax
+        Invoke _MFP_GetMajorType, pGUID
+        mov ebx, pStreamRecord
+        mov dwMajorType, eax
+        mov [ebx].MFP_STREAM_RECORD.dwMajorType, eax
+        Invoke PropVariantClear, Addr pvValue
+        
+        ; Sub Type
+        Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_SUBTYPE, Addr pvValue
+        mov eax, dwMajorType
+        .IF eax == MFMT_Audio
+            IFDEF DEBUG32
+            PrintText 'MFMT_Audio'
+            ENDIF
+            ; Audio Sub Type 
+            lea ebx, pvValue
+            mov eax, [ebx].PROPVARIANT.puuid
+            mov pGUID, eax
+            Invoke _MFP_GetAudioSubType, pGUID
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwSubType, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Bitrate - in kilobits per second
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_AUDIO_AVG_BYTES_PER_SECOND, Addr pvValue
+            lea ebx, pvValue
+            finit
+            fwait
+            fild dword ptr [ebx].PROPVARIANT.uintVal
+            fmul MFP_DIV125
+            fistp dword ptr dwBitratekbps
+            mov ebx, pStreamRecord
+            mov eax, dwBitratekbps
+            mov [ebx].MFP_STREAM_RECORD.dwBitRate, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Channels
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_AUDIO_NUM_CHANNELS, Addr pvValue
+            lea ebx, pvValue
+            mov eax, [ebx].PROPVARIANT.uintVal
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwChannels, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Speakers
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_AUDIO_CHANNEL_MASK, Addr pvValue
+            lea ebx, pvValue
+            mov eax, [ebx].PROPVARIANT.uintVal
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwSpeakers, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Bits per sample
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_AUDIO_BITS_PER_SAMPLE, Addr pvValue
+            lea ebx, pvValue
+            mov eax, [ebx].PROPVARIANT.uintVal
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwBitsPerSample, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Samples per second kHz
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_AUDIO_SAMPLES_PER_SECOND, Addr pvValue
+            lea ebx, pvValue
+            mov eax, [ebx].PROPVARIANT.uintVal
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwSamplesPerSec, eax
+            Invoke PropVariantClear, Addr pvValue
+        
+        .ELSEIF eax == MFMT_Video
+            IFDEF DEBUG32
+            PrintText 'MFMT_Video'
+            ENDIF
+            ; Video Sub Type 
+            lea ebx, pvValue
+            mov eax, [ebx].PROPVARIANT.puuid
+            mov pGUID, eax
+            Invoke _MFP_GetVideoSubType, pGUID
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwSubType, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Bitrate - in kilobits per second
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_AVG_BITRATE, Addr pvValue
+            lea ebx, pvValue
+            finit
+            fwait
+            fild dword ptr [ebx].PROPVARIANT.uintVal
+            fmul MFP_DIV1000
+            fistp dword ptr dwBitratekbps
+            mov ebx, pStreamRecord
+            mov eax, dwBitratekbps
+            mov [ebx].MFP_STREAM_RECORD.dwBitRate, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Frame rate - fps
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_FRAME_RATE, Addr pvValue
+            lea ebx, pvValue
+            mov eax, dword ptr [ebx].PROPVARIANT.uint64Val
+            .IF eax == 1
+                mov eax, dword ptr [ebx+4].PROPVARIANT.uint64Val
+                mov dwfps, eax
+            .ELSE
+                xor edx, edx
+                mov eax, dword ptr [ebx+4].PROPVARIANT.uint64Val
+                mov ebx, dword ptr [ebx].PROPVARIANT.uint64Val
+                div ebx
+                .IF edx > 0000FFFFh
+                    inc eax
+                .ENDIF
+                mov dwfps, eax
+            .ENDIF
+            IFDEF DEBUG32
+            PrintDec dwfps
+            ENDIF
+            mov ebx, pStreamRecord
+            mov eax, dwfps
+            mov [ebx].MFP_STREAM_RECORD.dwFrameRate, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Frame Height & Width
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_FRAME_SIZE, Addr pvValue
+            lea ebx, pvValue
+            mov eax, dword ptr [ebx].PROPVARIANT.uint64Val
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwFrameHeight, eax
+            lea ebx, pvValue
+            mov eax, dword ptr [ebx+4].PROPVARIANT.uint64Val
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwFrameWidth, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+            ; Interlace Mode
+            Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_INTERLACE_MODE, Addr pvValue
+            lea ebx, pvValue
+            mov eax, [ebx].PROPVARIANT.uintVal
+            mov ebx, pStreamRecord
+            mov [ebx].MFP_STREAM_RECORD.dwInterlace, eax
+            Invoke PropVariantClear, Addr pvValue
+            
+        .ELSE
+            IFDEF DEBUG32
+            PrintText 'MFPMediaItem_StreamTable::Other Sub Type'
+            ENDIF
+            Invoke PropVariantClear, Addr pvValue
+        .ENDIF
+        
+        IFDEF DEBUG32
+        PrintText 'Stream Name'
+        ENDIF
+        ; Stream Name - wide/unicode
+        mov ebx, pStreamRecord
+        lea eax, [ebx].MFP_STREAM_RECORD.szStreamName
+        mov lpszStreamName, eax
+        Invoke lstrcpyW, lpszStreamName, Addr szStream
+        Invoke _MFP_utoa_ex, nStream, Addr szStreamNumber
+        Invoke MFPConvertStringToWide, Addr szStreamNumber
+        mov pwszStreamNumber, eax
+        Invoke lstrcatW, lpszStreamName, pwszStreamNumber
+        Invoke MFPConvertStringFree, pwszStreamNumber
+        
+        IFDEF DEBUG32
+        PrintText 'Stream Language'
+        ENDIF
+        ; Stream Language - wide/unicode
+        Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_SD_LANGUAGE, Addr pvValue
+        lea ebx, pvValue
+        mov eax, [ebx].PROPVARIANT.pwszVal
+        mov pwszStringLang, eax
+        .IF pwszStringLang != 0
+            mov ebx, pStreamRecord
+            lea eax, [ebx].MFP_STREAM_RECORD.szStreamLang
+            mov lpszStreamLang, eax
+
+            Invoke lstrlenW, pwszStringLang
+            shl eax, 1 ; x2 for unicode chars to bytes
+            .IF eax > STREAMLANG_LENGTH
+                mov eax, STREAMLANG_LENGTH
+            .ENDIF
+            mov dwStringLangLength, eax
+            
+            Invoke RtlMoveMemory, lpszStreamLang, pwszStringLang, dwStringLangLength
+            mov ebx, lpszStreamLang
+            add ebx, dwStringLangLength
+            mov eax, 0
+            mov dword ptr [ebx], eax ; null
+        .ENDIF
+        Invoke PropVariantClear, Addr pvValue
+        
+        ; Update for next stream and record 
+        add pStreamRecord, SIZEOF MFP_STREAM_RECORD
+        inc nStream
+        mov eax, nStream
+    .ENDW
     
-    finit
-    fwait
-    fild qwTime
-    fmul MFP_DIV10000
-    ;fild dw100NSToMS
-    ;fdiv
-    fistp dwTimeMS
-    IFDEF DEBUG32
-    PrintDec dwTimeMS
+    IFDEF DEBUG32 
+    PrintDec dwStreamCount
+    PrintDec pStreamTable
+    PrintDec dwStreamTableSize
+    PrintDec SIZEOF MFP_STREAM_RECORD
+    DbgDump pStreamTable, dwStreamTableSize
     ENDIF
     
-    mov ebx, pdwMilliseconds
-    mov eax, dwTimeMS
-    mov [ebx], eax
+    jmp MFPMediaItem_StreamTable_Exit
+    
+MFPMediaItem_StreamTable_Error:
+    .IF lpdwStreamCount != 0
+        mov ebx, lpdwStreamCount
+        mov eax, 0
+        mov [ebx], eax
+    .ENDIF
+    
+    .IF lpdwStreamTable != 0
+        mov ebx, lpdwStreamTable
+        mov eax, 0
+        mov [ebx], eax
+    .ENDIF
+    mov eax, FALSE
+    ret
+
+MFPMediaItem_StreamTable_Exit:
+    .IF lpdwStreamCount != 0
+        mov ebx, lpdwStreamCount
+        mov eax, dwStreamCount
+        mov [ebx], eax
+    .ENDIF
+    
+    .IF lpdwStreamTable != 0
+        mov ebx, lpdwStreamTable
+        mov eax, pStreamTable
+        mov [ebx], eax
+    .ENDIF
+    mov eax, TRUE
     
     ret
-_MFP_Convert100NSValueToMSTime ENDP
+MFPMediaItem_StreamTable ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
-; _MFP_ConvertMSTimeTo100NSValue
-;
-; Converts milliseconds to PROPVARIANT nanoseconds value.
-;
-; Parameters:
-;
-; * pvValue - pointer to PROPVARIANT that will hold the converted value.
-;
-; * pdwMilliseconds - milliseconds value to convert.
-;
-; Returns:
-;
-; -1 if there is an error, otherwise returns the milliseconds value in eax.
-;
-; See Also:
-;
-; _MFP_Convert100NSValueToMSTime, ConvertMSTimeToTimeString
-;
+; _MFP_GetMajorType
 ;------------------------------------------------------------------------------
-_MFP_ConvertMSTimeTo100NSValue PROC USES EBX pvValue:DWORD, dwMilliseconds:DWORD
-    LOCAL qwTime:QWORD
-    LOCAL dwTimeMS:DWORD
-    LOCAL dwMSTo100NS:DWORD
+_MFP_GetMajorType PROC pGUID:DWORD
     
-    .IF pvValue == 0
-        mov eax, -1
+    ;Invoke RtlCompareMemory, pGUID, Addr MFMediaType_Audio, 16
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Audio, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_Audio
         ret
     .ENDIF
-    
-    ; Convert 100ns units to milliseconds
-    mov eax, 10000d
-    mov dwMSTo100NS, eax
-    
-    .IF dwMilliseconds != 0
-        finit
-        fwait
-        fild dwMilliseconds
-        fild dwMSTo100NS
-        fmul
-        fistp qwTime
-        
-        mov ebx, pvValue
-        mov eax, 0
-        mov dword ptr [ebx+00], eax
-        mov dword ptr [ebx+04], eax
-        mov dword ptr [ebx+08], eax
-        mov dword ptr [ebx+12], eax
-        
-        mov eax, dword ptr [qwTime+0]
-        mov dword ptr [ebx].PROPVARIANT.hVal.LowPart, eax
-        mov eax, dword ptr [qwTime+4]
-        mov dword ptr [ebx].PROPVARIANT.hVal.HighPart, eax
-        mov word ptr [ebx].PROPVARIANT.vt, VT_I8
-        
-    .ELSE
-        mov ebx, pvValue
-        mov eax, 0
-        mov dword ptr [ebx+0], eax
-        mov dword ptr [ebx+4], eax
-        mov dword ptr [ebx+08], eax
-        mov dword ptr [ebx+12], eax
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Video, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_Video
+        ret
     .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Stream, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_Stream
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Metadata, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_Metadata
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Protected, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_Protected
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_SAMI, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_SAMI
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Image, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_Image
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Binary, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_Binary
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_HTML, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_HTML
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Perception, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_Perception
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_FileTransfer, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_FileTransfer
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFMediaType_Script, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFMT_FileTransfer
+        ret
+    .ENDIF
+    mov eax, MFMT_Script
     
-    mov eax, dwMilliseconds
     ret
-_MFP_ConvertMSTimeTo100NSValue ENDP
+_MFP_GetMajorType ENDP
 
-ALIGN 8
+ALIGN 4
+;------------------------------------------------------------------------------
+; _MFP_GetAudioSubType
+;------------------------------------------------------------------------------
+_MFP_GetAudioSubType PROC pGUID:DWORD
+
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_MP3, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_MP3
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_AAC, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_AAC
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_ALAC, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_ALAC
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_AC3, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_AC3
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_AC3_SPDIF, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_AC3_SP
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_DDPlus, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_DDPlus
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_AC4, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_AC4
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_AC4_V1, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_AC4_V1
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_AC4_V2, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_AC4_V2
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_AC4_V1_ES, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_AC4_V1_ES
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_AC4_V2_ES, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_AC4_V2_ES
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_DDPlus, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_DDPlus
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_DTS, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_DTS
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_DTS_RAW, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_DTS_RAW
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_DTS_HD, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_DTS_HD
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_DTS_XLL, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_DTS_XLL
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_DTS_LBR, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_DTS_LBR
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_DTS_UHD, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_DTS_UHD
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_DTS_UHDY, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_DTS_UHDY
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_WMASPDIF, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_WMASPDIF
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_WMAudio_Lossless, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_WMAudio_LL
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_WMAudioV8, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_WMAudioV8
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_WMAudioV9, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_WMAudioV9
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_FLAC, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_FLAC
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_PCM, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_PCM
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_LPCM, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_LPCM
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_MPEG, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_MPEG
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_MPEGH, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_MPEGH
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_MPEGH_ES, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_MPEGH_ES
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_MSP1, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_MSP1
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_AMR_NB, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_AMR_NB
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_AMR_WB, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_AMR_WB
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_AMR_WP, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_AMR_WP
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_DRM, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_DRM
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Vorbis, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Vorbis
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Opus, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Opus
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Float, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Float
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Float_SpatialObjects, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Float_SO
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_Dolby_AC3_HDCP, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_Dolby_AC3_HDCP
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_AAC_HDCP, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_AAC_HDCP
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_PCM_HDCP, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_PCM_HDCP
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_ADTS_HDCP, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_ADTS_HDCP
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFAudioFormat_ADTS, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFAF_ADTS
+        ret
+    .ENDIF
+  
+    mov eax, MFAF_Unknown
+    ret
+
+    ret
+_MFP_GetAudioSubType ENDP
+
+ALIGN 4
+;------------------------------------------------------------------------------
+; _MFP_GetVideoSubType
+;------------------------------------------------------------------------------
+_MFP_GetVideoSubType PROC pGUID:DWORD
+
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_M4S2, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_M4S2
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_MP4V, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_MP4V
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_H264, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_H264
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_H265, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_H265
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_H264_ES, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_H264_ES
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_WMV1, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_WMV1
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_WMV2, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_WMV2
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_WMV3, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_WMV3
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_MP4S, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_MP4S
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_AV1, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_AV1
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_VP80, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_VP80
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_VP90, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_VP90
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_HEVC, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_HEVC
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_HEVC_ES, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_HEVC_ES
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_H263, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_H263
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_MSS1, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_MSS1
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_MSS2, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_MSS2
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_MJPG, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_MJPG
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_MPG1, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_MPG1
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_MPEG2, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_MPEG2
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_DV25, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_DV25
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_DV50, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_DV50
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_DVC, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_DVC
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_DVH1, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_DVH1
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_DVHD, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_DVHD
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_DVSD, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_DVSD
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_DVSL, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_DVSL
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_WVC1, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_WVC1
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_420O, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_420O
+        ret
+    .ENDIF
+    Invoke _MFP_MemoryCompare, pGUID, Addr MFVideoFormat_MP43, 16
+    .IF eax != 0 ; == 16
+        mov eax, MFVF_MP43
+        ret
+    .ENDIF
+
+    mov eax, MFVF_Unknown
+
+    ret
+_MFP_GetVideoSubType ENDP
+
+
+;==============================================================================
+; Misc Functions
+;==============================================================================
+
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPConvertMSTimeToTimeStringA
 ;
@@ -4616,7 +5464,7 @@ MFPConvertMSTimeToTimeStringA PROC USES EBX ECX EDX EDI ESI dwMilliseconds:DWORD
     ret
 MFPConvertMSTimeToTimeStringA ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; MFPConvertMSTimeToTimeStringW
 ;
@@ -4656,11 +5504,11 @@ MFPConvertMSTimeToTimeStringW PROC USES EBX dwMilliseconds:DWORD, lpszTime:DWORD
     
     Invoke MFPConvertMSTimeToTimeStringA, dwMilliseconds, Addr szAnsiTime, dwTimeFormat
     .IF eax == TRUE
-        Invoke _MFP_ConvertStringToWide, Addr szAnsiTime
+        Invoke MFPConvertStringToWide, Addr szAnsiTime
         .IF eax != NULL
             mov pWideTime, eax
             Invoke lstrcpyW, lpszTime, pWideTime
-            Invoke _MFP_ConvertStringFree, pWideTime
+            Invoke MFPConvertStringFree, pWideTime
             mov eax, TRUE
         .ELSE
             mov eax, FALSE
@@ -4670,9 +5518,9 @@ MFPConvertMSTimeToTimeStringW PROC USES EBX dwMilliseconds:DWORD, lpszTime:DWORD
     ret
 MFPConvertMSTimeToTimeStringW ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
-; _MFP_ConvertStringToAnsi 
+; MFPConvertStringToAnsi 
 ;
 ; Converts a Wide/Unicode string to an ANSI/UTF8 string.
 ;
@@ -4687,14 +5535,14 @@ ALIGN 8
 ; Notes:
 ;
 ; The string that is converted should be freed when it is no longer needed with 
-; a call to the _MFP_ConvertStringFree function.
+; a call to the MFPConvertStringFree function.
 ;
 ; See Also:
 ;
-; _MFP_ConvertStringToWide, _MFP_ConvertStringFree
+; MFPConvertStringToWide, MFPConvertStringFree
 ; 
 ;------------------------------------------------------------------------------
-_MFP_ConvertStringToAnsi PROC lpszWideString:DWORD
+MFPConvertStringToAnsi PROC lpszWideString:DWORD
     LOCAL dwAnsiStringSize:DWORD
     LOCAL lpszAnsiString:DWORD
 
@@ -4720,11 +5568,11 @@ _MFP_ConvertStringToAnsi PROC lpszWideString:DWORD
     .ENDIF
     mov eax, lpszAnsiString
     ret
-_MFP_ConvertStringToAnsi ENDP
+MFPConvertStringToAnsi ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
-; _MFP_ConvertStringToWide
+; MFPConvertStringToWide
 ;
 ; Converts a Ansi string to an Wide/Unicode string.
 ;
@@ -4739,14 +5587,14 @@ ALIGN 8
 ; Notes:
 ;
 ; The string that is converted should be freed when it is no longer needed with 
-; a call to the _MFP_ConvertStringFree function.
+; a call to the MFPConvertStringFree function.
 ;
 ; See Also:
 ;
-; _MFP_ConvertStringToAnsi, _MFP_ConvertStringFree
+; MFPConvertStringToAnsi, MFPConvertStringFree
 ; 
 ;------------------------------------------------------------------------------
-_MFP_ConvertStringToWide PROC lpszAnsiString:DWORD
+MFPConvertStringToWide PROC lpszAnsiString:DWORD
     LOCAL dwWideStringSize:DWORD
     LOCAL lpszWideString:DWORD
     
@@ -4772,14 +5620,14 @@ _MFP_ConvertStringToWide PROC lpszAnsiString:DWORD
     .ENDIF
     mov eax, lpszWideString
     ret
-_MFP_ConvertStringToWide ENDP
+MFPConvertStringToWide ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
-; _MFP_ConvertStringFree
+; MFPConvertStringFree
 ;
-; Frees a string created by _MFP_ConvertStringToWide or
-; _MFP_ConvertStringToAnsi
+; Frees a string created by MFPConvertStringToWide or
+; MFPConvertStringToAnsi
 ;
 ; Parameters:
 ; 
@@ -4791,10 +5639,10 @@ ALIGN 8
 ; 
 ; See Also:
 ;
-; _MFP_ConvertStringToWide, _MFP_ConvertStringToAnsi
+; MFPConvertStringToWide, MFPConvertStringToAnsi
 ; 
 ;------------------------------------------------------------------------------
-_MFP_ConvertStringFree PROC lpString:DWORD
+MFPConvertStringFree PROC lpString:DWORD
     mov eax, lpString
     .IF eax == NULL
         mov eax, FALSE
@@ -4803,13 +5651,229 @@ _MFP_ConvertStringFree PROC lpString:DWORD
     Invoke GlobalFree, eax
     mov eax, TRUE
     ret
-_MFP_ConvertStringFree ENDP
+MFPConvertStringFree ENDP
 
-; Paul Dixon's utoa_ex function. unsigned dword to ascii. 
+
+;==============================================================================
+; Internal Functions
+;==============================================================================
+
+ALIGN 4
+;------------------------------------------------------------------------------
+; _MFP_Convert100NSValueToMSTime
+;
+; Converts PROPVARIANT nanoseconds value to milliseconds.
+;
+; Parameters:
+;
+; * pvValue - pointer to PROPVARIANT that holds the nanosecond value.
+;
+; * pdwMilliseconds - pointer to a DWORD to store the converted milliseconds.
+;
+; Returns:
+;
+; -1 if there is an error, otherwise returns the milliseconds value in eax.
+;
+; See Also:
+;
+; _MFP_ConvertMSTimeTo100NSValue, ConvertMSTimeToTimeString
+;
+;------------------------------------------------------------------------------
+_MFP_Convert100NSValueToMSTime PROC USES EBX pvValue:DWORD, pdwMilliseconds:DWORD
+    LOCAL qwTime:QWORD
+    LOCAL dwTimeMS:DWORD
+    ;LOCAL dw100NSToMS:DWORD; DD 10000
+
+    IFDEF DEBUG32
+    PrintText '_MFP_Convert100NSValueToMSTime'
+    ENDIF
+
+    .IF pvValue == 0 || pdwMilliseconds == 0
+        mov eax, -1
+        ret
+    .ENDIF
+    
+    ; If high word of pvValue is >= 10000 then
+    ; div wont be accurate, so most we return
+    ; is -2 (4294967294 | FFFFFFFEh): 49d 17:02:47.29
+    ;  (-1 is used for errors)
+    mov ebx, pvValue
+    mov eax, dword ptr [ebx].PROPVARIANT.hVal.HighPart
+    .IF sdword ptr eax >= 10000d
+        IFDEF DEBUG32
+        PrintText 'eax >= 10000d'
+        ENDIF
+        mov eax, -2 ; (FFFFFFFEh): 49d 17:02:47.29
+        ret
+    .ENDIF
+    
+    ; Convert 100ns units to milliseconds
+    ;mov eax, 10000d
+    ;mov dw100NSToMS, eax
+    mov ebx, pvValue
+    mov eax, dword ptr [ebx].PROPVARIANT.hVal.LowPart
+    mov dword ptr [qwTime+0], eax
+    mov eax, dword ptr [ebx].PROPVARIANT.hVal.HighPart
+    mov dword ptr [qwTime+4], eax
+    
+    finit
+    fwait
+    fild qwTime
+    fmul MFP_DIV10000
+    ;fild dw100NSToMS
+    ;fdiv
+    fistp dwTimeMS
+    IFDEF DEBUG32
+    PrintDec dwTimeMS
+    ENDIF
+    
+    mov ebx, pdwMilliseconds
+    mov eax, dwTimeMS
+    mov [ebx], eax
+    
+    ret
+_MFP_Convert100NSValueToMSTime ENDP
+
+ALIGN 4
+;------------------------------------------------------------------------------
+; _MFP_ConvertMSTimeTo100NSValue
+;
+; Converts milliseconds to PROPVARIANT nanoseconds value.
+;
+; Parameters:
+;
+; * pvValue - pointer to PROPVARIANT that will hold the converted value.
+;
+; * pdwMilliseconds - milliseconds value to convert.
+;
+; Returns:
+;
+; -1 if there is an error, otherwise returns the milliseconds value in eax.
+;
+; See Also:
+;
+; _MFP_Convert100NSValueToMSTime, ConvertMSTimeToTimeString
+;
+;------------------------------------------------------------------------------
+_MFP_ConvertMSTimeTo100NSValue PROC USES EBX pvValue:DWORD, dwMilliseconds:DWORD
+    LOCAL qwTime:QWORD
+    LOCAL dwTimeMS:DWORD
+    LOCAL dwMSTo100NS:DWORD
+    
+    .IF pvValue == 0
+        mov eax, -1
+        ret
+    .ENDIF
+    
+    ; Convert 100ns units to milliseconds
+    mov eax, 10000d
+    mov dwMSTo100NS, eax
+    
+    .IF dwMilliseconds != 0
+        finit
+        fwait
+        fild dwMilliseconds
+        fild dwMSTo100NS
+        fmul
+        fistp qwTime
+        
+        mov ebx, pvValue
+        mov eax, 0
+        mov dword ptr [ebx+00], eax
+        mov dword ptr [ebx+04], eax
+        mov dword ptr [ebx+08], eax
+        mov dword ptr [ebx+12], eax
+        
+        mov eax, dword ptr [qwTime+0]
+        mov dword ptr [ebx].PROPVARIANT.hVal.LowPart, eax
+        mov eax, dword ptr [qwTime+4]
+        mov dword ptr [ebx].PROPVARIANT.hVal.HighPart, eax
+        mov word ptr [ebx].PROPVARIANT.vt, VT_I8
+        
+    .ELSE
+        mov ebx, pvValue
+        mov eax, 0
+        mov dword ptr [ebx+0], eax
+        mov dword ptr [ebx+4], eax
+        mov dword ptr [ebx+08], eax
+        mov dword ptr [ebx+12], eax
+    .ENDIF
+    
+    mov eax, dwMilliseconds
+    ret
+_MFP_ConvertMSTimeTo100NSValue ENDP
+
+ALIGN 4
+;------------------------------------------------------------------------------
+; _MFP_MemoryCompare
+;
+; Compare two memory addresses of the same known length.
+; 
+; Parameters:
+; 
+; * pMemoryAddress1 - The first memory location to test.
+; 
+; * pMemoryAddress2 - The second memory location to test against the first.
+; 
+; * dwMemoryLength - The length of the buffers in BYTES.
+; 
+; Returns:
+; 
+; 0 = different. non 0 = byte identical.
+; 
+; Notes:
+;
+; This function as based on the MASM32 Library function: cmpmem
+;
+;------------------------------------------------------------------------------
+_MFP_MemoryCompare PROC USES ECX EDX EDI ESI pMemoryAddress1:DWORD, pMemoryAddress2:DWORD, dwMemoryLength:DWORD
+    mov ecx, pMemoryAddress1        ; buf1
+    mov edx, pMemoryAddress2        ; buf2
+
+    xor esi, esi
+    xor eax, eax
+    mov edi, dwMemoryLength         ; bcnt
+    cmp edi, 4
+    jb under
+
+    shr edi, 2                      ; div by 4
+
+  align 4
+  @@:
+    mov eax, [ecx+esi]              ; DWORD compare main file
+    cmp eax, [edx+esi]
+    jne fail
+    add esi, 4
+    sub edi, 1
+    jnz @B
+
+    mov edi, dwMemoryLength         ; bcnt; calculate any remainder
+    and edi, 3
+    jz match                        ; exit if its zero
+
+  under:
+    movzx eax, BYTE PTR [ecx+esi]   ; BYTE compare tail
+    cmp al, [edx+esi]
+    jne fail
+    add esi, 1
+    sub edi, 1
+    jnz under
+
+    jmp match
+
+  fail:
+    xor eax, eax                    ; return zero if DIFFERENT
+    jmp quit
+
+  match:
+    mov eax, 1                      ; return NON zero if SAME
+
+  quit:
+    ret
+_MFP_MemoryCompare ENDP
 
 OPTION PROLOGUE:NONE
 OPTION EPILOGUE:NONE
-
 align 16
 ;------------------------------------------------------------------------------
 ; _MFP_utoa_ex
@@ -4991,7 +6055,6 @@ _MFP_utoa_ex proc uvar:DWORD, pbuffer:DWORD
     ret 8
 
 _MFP_utoa_ex endp
-
 OPTION PROLOGUE:PrologueDef
 OPTION EPILOGUE:EpilogueDef
 
@@ -5003,7 +6066,7 @@ IMFPMPCallback_QueryInterfaceProc   PROTO pThis:DWORD, riid:DWORD, ppvObject:DWO
 IMFPMPCallback_AddRefProc           PROTO pThis:DWORD
 IMFPMPCallback_ReleaseProc          PROTO pThis:DWORD
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; IMFPMPCallback_QueryInterfaceProc
 ;
@@ -5042,7 +6105,7 @@ IMFPMPCallback_QueryInterfaceProc PROC pThis:DWORD, riid:DWORD, ppvObject:DWORD
     ret
 IMFPMPCallback_QueryInterfaceProc ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; IMFPMPCallback_AddRefProc
 ;
@@ -5070,7 +6133,7 @@ IMFPMPCallback_AddRefProc PROC pThis:DWORD
     ret
 IMFPMPCallback_AddRefProc ENDP
 
-ALIGN 8
+ALIGN 4
 ;------------------------------------------------------------------------------
 ; IMFPMPCallback_ReleaseProc
 ;

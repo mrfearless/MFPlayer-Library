@@ -64,21 +64,21 @@ Group=Assembly,Misc
 7=2
 8=2
 [AutoLoad]
-AutoLoad=2,3,1,6
+AutoLoad=2,3,1,6,5,8
 [RADebugBP]
 1=
 2=
 [Find]
-1=":MFP_EVENT_HEADER"
-2="_ConvertMSTimeTo100NSValue"
-3="_Convert100NSValueToMSTime"
-4="MFPlayer_"
-5="MFPlayer"
-6="_Proto"
-7=" "
-8=":DWORD"
-9=":DWORD, "
-10="TYPEDEF PROTO STDCALL "
+1="MFI_GetVideoSubType"
+2="MFI_GetAudioSubType"
+3="MFI_GetMajorType"
+4="MP_STREAM_RECORD"
+5="ALIGN 8"
+6=".IF eax == 16"
+7="RtlCompareMemory"
+8="MFVideoFormat_AV1"
+9="MFP_ConvertStringFree"
+10="MFP_ConvertStringToWide"
 [VersionControl]
 Settings=1278
 Milestones=129
@@ -89,7 +89,7 @@ MilestoneOnTime=2
 MilestoneOnDate=0
 MilestoneOnDateWhen=1
 MilestoneOnDateStatus=0
-MilestoneOnDateDate=1
+MilestoneOnDateDate=11
 MilestoneOnDateTimeYear=2024
 MilestoneOnDateTimeMonth=8
 MilestoneOnDateTimeDate=8
@@ -113,9 +113,9 @@ ProductVer2Range=0
 ProductVer3Range=0
 ProductVer4Range=0
 [PTimer]
-PTimer=174707966
+PTimer=216072652
 [Collapse]
-1=558127,1227132928,76695844,613566756,306783378,574919241,136609858,122233860,62923024,1
+1=71439519,72704,65536,4194816,1224779456,490838446,910763152,1533916891,278210121,37765376,34668777,4216,
 2=
 3=
 4=
@@ -124,14 +124,14 @@ PTimer=174707966
 7=
 6=
 [Size]
-1=0,0,0,0,59447
-2=0,0,0,0,8053
-3=0,0,0,0,3678
+1=0,0,0,0,151628
+2=0,0,0,0,7374
+3=0,0,0,0,4011
 4=0,0,0,0,272
-5=0,0,0,0,273
-8=0,0,0,0,1052
+5=0,0,0,0,2314
+8=0,0,0,0,2112
 7=0,0,0,0,276
-6=0,0,0,0,760
+6=0,0,0,0,3988
 [GroupExpand]
 GroupExpand=1,1,0
 [BookMark]

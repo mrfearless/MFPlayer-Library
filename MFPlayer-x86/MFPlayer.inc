@@ -99,9 +99,16 @@ MFPMediaItem_GetMetadata          PROTO pMediaItem:DWORD, ppMetadataStore:DWORD
 
 MFPMediaItem_SetStreamSink        PROTO pMediaItem:DWORD, dwStreamIndex:DWORD, pMediaSink:DWORD
 
+; Media Information
+MFPMediaItem_StreamTable          PROTO pMediaItem:DWORD, lpdwStreamCount:DWORD, lpdwStreamTable:DWORD
+
 ; Misc
 MFPConvertMSTimeToTimeStringA     PROTO dwMilliseconds:DWORD, lpszTime:DWORD, dwTimeFormat:DWORD
 MFPConvertMSTimeToTimeStringW     PROTO dwMilliseconds:DWORD, lpszTime:DWORD, dwTimeFormat:DWORD
+
+MFPConvertStringToAnsi            PROTO lpszWideString:DWORD
+MFPConvertStringToWide            PROTO lpszAnsiString:DWORD
+MFPConvertStringFree              PROTO lpString:DWORD
 
 IFDEF __UNICODE__
     MFPMediaPlayer_CreateMediaItem  EQU <MFPMediaPlayer_CreateMediaItemW>
@@ -137,6 +144,35 @@ MediaEventType TYPEDEF DWORD
 ENDIF
 IFNDEF HRESULT
 HRESULT TYPEDEF DWORD
+ENDIF
+
+STREAMLANG_LENGTH    EQU 28
+STREAMNAME_LENGTH    EQU 28
+
+IFNDEF MFP_STREAM_RECORD
+MFP_STREAM_RECORD   STRUCT
+    dwStreamID      DD ?
+    bSelected       DD ? ; bool
+    szStreamLang    DB (STREAMLANG_LENGTH+4) DUP (?)
+    szStreamName    DB (STREAMNAME_LENGTH+4) DUP (?)
+    dwMajorType     DD ? ; Video, Audio, etc
+    dwSubType       DD ? ; Video or Audio subtype
+    dwBitRate       DD ? ; kilobits per second: kbps
+    UNION
+        STRUCT
+        dwChannels      DD ? ; 6 = 5.1 etc
+        dwSpeakers      DD ? ; positioning of speakers
+        dwBitsPerSample DD ? ; bitdepth for lossless
+        dwSamplesPerSec DD ? ; kHz
+        ENDS
+        STRUCT
+        dwFrameRate     DD ? ; fps
+        dwFrameWidth    DD ? ; px
+        dwFrameHeight   DD ? ; px
+        dwInterlace     DD ? ; mode
+        ENDS
+    ENDS
+MFP_STREAM_RECORD   ENDS
 ENDIF
 
 IFNDEF MFP_EVENT_HEADER
@@ -422,9 +458,117 @@ MFVideoARMode_PreservePixel     EQU 2h
 MFVideoARMode_NonLinearStretch  EQU 4h
 MFVideoARMode_Mask              EQU 7h
 
+; MFVideoInterlaceMode
+MFVideoInterlace_Unknown        EQU 0
+MFVideoInterlace_Progressive    EQU 2
+MFVideoInterlace_FieldInterleavedUpperFirst EQU 3
+MFVideoInterlace_FieldInterleavedLowerFirst EQU 4
+MFVideoInterlace_FieldSingleUpper EQU 5
+MFVideoInterlace_FieldSingleLower EQU 6
+MFVideoInterlace_MixedInterlaceOrProgressive EQU 7
 
 
+;---------------------------------------------------------------------------------------------------------------------------
+; Media Major Type         | Description                              | Subtype
+;--------------------------------------------------------------------------------------------------------------------------- 
+MFMT_None           EQU  0 ; None.                                      None.
+MFMT_Audio 	        EQU  1 ; Audio. 	                                Audio Subtype GUIDs.
+MFMT_Video 	        EQU  2 ; Video. 	                                Video Subtype GUIDs.  
+MFMT_Stream 	    EQU  3 ; Multiplexed stream or elementary stream. 	Stream Subtype GUIDs
+MFMT_Metadata 	    EQU  4 ; Metadata stream. 	                        None.
+MFMT_Protected 	    EQU  5 ; Protected media. 	                        The subtype specifies the content protection scheme.
+MFMT_SAMI 	        EQU  6 ; SAMI captions. 	                        None.
+MFMT_Image 	        EQU  7 ; Still image stream. 	                    WIC GUIDs and CLSIDs.
+MFMT_Binary 	    EQU  8 ; Binary stream. 	                        None.
+MFMT_HTML 	        EQU  9 ; HTML stream. 	                            None.
+MFMT_Perception 	EQU 10 ; Streams from a camera sensor               None.
+MFMT_FileTransfer 	EQU 11 ; A stream that contains data files. 	    None.
+MFMT_Script 	    EQU 12 ; Script stream. 	                        None.
 
+;---------------------------------------------------------------------------------------------------------------------------
+; Audio Format Subtype     | Description                              
+;--------------------------------------------------------------------------------------------------------------------------- 
+MFAF_Unknown         EQU  0 ; Unknown
+MFAF_MP3 	         EQU  1 ; MPEG Audio Layer-3 (MP3). MPEG-4 Part 3, AAC (ISO/IEC 14496-3)
+MFAF_AAC 	         EQU  2 ; Advanced Audio Coding (AAC).
+MFAF_ALAC 	         EQU  3 ; Apple Lossless Audio Codec (ALAC).
+MFAF_Dolby_AC3 	     EQU  4 ; Dolby Digital (AC-3).
+MFAF_Dolby_AC3_SP    EQU  5 ; Dolby AC-3 audio over Sony/Philips Digital Interface (S/PDIF).
+MFAF_Dolby_DDPlus 	 EQU  6 ; Dolby Digital Plus. EAC3
+MFAF_Dolby_AC4       EQU  7 ; Dolby (AC-4).
+MFAF_Dolby_AC4_V1    EQU  8
+MFAF_Dolby_AC4_V2    EQU  9
+MFAF_Dolby_AC4_V1_ES EQU 10
+MFAF_Dolby_AC4_V2_ES EQU 11
+MFAF_DTS 	         EQU 12 ; Digital Theater Systems (DTS) audio.
+MFAF_DTS_RAW         EQU 13
+MFAF_DTS_HD          EQU 14 ; DTS-HD Master Audio
+MFAF_DTS_XLL         EQU 15 ; DTS-HD Master Audio Lossless
+MFAF_DTS_LBR         EQU 16
+MFAF_DTS_UHD         EQU 17
+MFAF_DTS_UHDY        EQU 18
+MFAF_WMAudio_LL      EQU 19 ; Windows Media Audio 9 Lossless codec or Windows Media Audio 9.1 codec. (WMALOSSLESS)
+MFAF_WMAudioV8 	     EQU 20 ; Windows Media Audio 8 codec, Windows Media Audio 9 codec, or Windows Media Audio 9.1 codec. (WMAV2)
+MFAF_WMAudioV9 	     EQU 21 ; Windows Media Audio 9 Professional codec or Windows Media Audio 9.1 Professional codec. (WMAPRO)
+MFAF_WMASPDIF 	     EQU 22 ; Windows Media Audio 9 Professional codec over S/PDIF.
+MFAF_FLAC 	         EQU 23 ; Free Lossless Audio Codec (FLAC).
+MFAF_PCM 	         EQU 24 ; Uncompressed PCM audio.
+MFAF_LPCM            EQU 25 ; DVD audio data
+MFAF_MPEG 	         EQU 26 ; MPEG-1 audio payload. (MP1)
+MFAF_MPEGH           EQU 27
+MFAF_MPEGH_ES        EQU 28
+MFAF_MSP1 	         EQU 29 ; Windows Media Audio 9 Voice codec (WMAVOICE)
+MFAF_AMR_NB 	     EQU 30 ; Adaptive Multi-Rate Narrowband (AMR_NB)
+MFAF_AMR_WB 	     EQU 31 ; Adaptive Multi-Rate Wideband (AMR_WB)
+MFAF_AMR_WP 	     EQU 32 ; Adaptive Multi-Rate Wideband Plus (AMR_WP)
+MFAF_DRM 	         EQU 33 ; Encrypted audio data used with secure audio path.
+MFAF_Vorbis          EQU 34 ; VORBIS
+MFAF_Opus 	         EQU 35 ; Opus
+MFAF_Float 	         EQU 36 ; Uncompressed IEEE floating-point audio.
+MFAF_Float_SO        EQU 37 ; Uncompressed IEEE floating-point audio.
+MFAF_RAW_AAC1 	     EQU 38 ; Advanced Audio Coding (AAC). In AVI
+MFAF_QCELP 	         EQU 39 ; QCELP (Qualcomm Code Excited Linear Prediction) audio.
+MFAF_Dolby_AC3_HDCP  EQU 40 ; Dolby Digital (AC-3) (HDCP)
+MFAF_AAC_HDCP        EQU 41 
+MFAF_PCM_HDCP        EQU 42 
+MFAF_ADTS_HDCP       EQU 43 ; Advanced Audio Coding (AAC) in Audio Data Transport Stream (ADTS) format (HDCP)
+MFAF_ADTS 	         EQU 44 ; Advanced Audio Coding (AAC) in Audio Data Transport Stream (ADTS)
+
+
+;---------------------------------------------------------------------------------------------------------------------------
+; Video Format Subtype     | Description                              
+;--------------------------------------------------------------------------------------------------------------------------- 
+MFVF_Unknown        EQU  0 ; 
+MFVF_M4S2 	        EQU  1 ; 'M4S2' 	MPEG-4 part 2 video.
+MFVF_MP4V 	        EQU  2 ; 'MP4V' 	MPEG-4 part 2 video.
+MFVF_H264 	        EQU  3 ; 'H264' 	H.264 video.
+MFVF_H265 	        EQU  4 ; 'H265' 	H.265 video.
+MFVF_H264_ES        EQU  5 ; 	    Not applicable 	H.264 elementary stream.
+MFVF_WMV1 	        EQU  6 ; 'WMV1' 	Windows Media Video codec version 7.
+MFVF_WMV2 	        EQU  7 ; 'WMV2' 	Windows Media Video 8 codec.
+MFVF_WMV3 	        EQU  8 ; 'WMV3' 	Windows Media Video 9 codec.
+MFVF_MP4S 	        EQU  9 ; 'MP4S' 	ISO MPEG 4 codec version 1.
+MFVF_AV1 	        EQU 10 ; 'AV01' 	AV1 video.
+MFVF_VP80 	        EQU 11 ; 'MPG1' 	VP8 video.
+MFVF_VP90 	        EQU 12 ; 'MPG1' 	VP9 video.
+MFVF_HEVC 	        EQU 13 ; 'HEVC' 	The HEVC Main profile and Main Still Picture profile.
+MFVF_HEVC_ES        EQU 14 ;'HEVS' 	This media type is the same as MFVF_HEVC, except media samples contain a fragmented HEVC bitstream.
+MFVF_H263 	        EQU 15 ; 'H263' 	H.263 video.
+MFVF_MSS1 	        EQU 16 ; 'MSS1' 	Windows Media Screen codec version 1.
+MFVF_MSS2 	        EQU 17 ; 'MSS2' 	Windows Media Video 9 Screen codec.
+MFVF_MJPG 	        EQU 18 ; 'MJPG' 	Motion JPEG.
+MFVF_MPG1 	        EQU 19 ; 'MPG1' 	MPEG-1 video.
+MFVF_MPEG2          EQU 20 ; 	        Not applicable 	MPEG-2 video. (Equivalent to MEDIASUBTYPE_MPEG2_VIDEO in DirectShow.)
+MFVF_DV25 	        EQU 21 ; 'dv25' 	DVCPRO 25 (525-60 or 625-50).
+MFVF_DV50 	        EQU 22 ; 'dv50' 	DVCPRO 50 (525-60 or 625-50).
+MFVF_DVC 	        EQU 23 ; 'dvc ' 	DVC/DV Video.
+MFVF_DVH1 	        EQU 24 ; 'dvh1' 	DVCPRO 100 (1080/60i, 1080/50i, or 720/60P).
+MFVF_DVHD 	        EQU 25 ; 'dvhd' 	HD-DVCR (1125-60 or 1250-50).
+MFVF_DVSD 	        EQU 26 ; 'dvsd' 	SDL-DVCR (525-60 or 625-50).
+MFVF_DVSL 	        EQU 27 ; 'dvsl' 	SD-DVCR (525-60 or 625-50).
+MFVF_WVC1 	        EQU 28 ; 'WVC1' 	SMPTE 421M ("VC-1").
+MFVF_420O 	        EQU 29 ; '420O' 	8-bit per channel planar YUV 4:2:0 video.
+MFVF_MP43 	        EQU 30 ; 'MP43' 	Microsoft MPEG 4 codec version 3. This codec is no longer supported.
 
 
 
