@@ -27,7 +27,6 @@ option win64 : 11
 option frame : auto
 
 ;DEBUG64 EQU 1
-;
 ;IFDEF DEBUG64
 ;    PRESERVEXMMREGS equ 1
 ;    includelib \UASM\lib\x64\Debug64.lib
@@ -4504,8 +4503,7 @@ MFPMediaItem_StreamTable PROC FRAME USES RBX RDX pMediaItem:QWORD, lpdwStreamCou
                 mov eax, dword ptr [rbx+4].PROPVARIANT.uint64Val
                 mov dwfps, eax
             .ELSE
-                xor rax, rax
-                xor rbx, rbx
+                lea rbx, pvValue
                 mov eax, dword ptr [rbx+4].PROPVARIANT.uint64Val
                 mov ebx, dword ptr [rbx].PROPVARIANT.uint64Val
                 .IF eax == 0 || ebx == 0
@@ -4530,6 +4528,9 @@ MFPMediaItem_StreamTable PROC FRAME USES RBX RDX pMediaItem:QWORD, lpdwStreamCou
             mov dword ptr [rbx].MFP_STREAM_RECORD.dwFrameRate, eax
             Invoke PropVariantClear, Addr pvValue
             
+            IFDEF DEBUG64
+            PrintText 'MFPMediaItem_StreamTable::fps ok'
+            ENDIF
             ; Frame Height & Width
             Invoke MFPMediaItem_GetStreamAttribute, pMediaItem, nStream, Addr MF_MT_FRAME_SIZE, Addr pvValue
             lea rbx, pvValue
@@ -4593,7 +4594,9 @@ MFPMediaItem_StreamTable PROC FRAME USES RBX RDX pMediaItem:QWORD, lpdwStreamCou
             
             Invoke RtlMoveMemory, lpszStreamLang, pwszStringLang, dwStringLangLength
             mov rbx, lpszStreamLang
-            add ebx, dwStringLangLength
+            xor rax, rax
+            mov eax, dwStringLangLength
+            add rbx, rax 
             mov rax, 0
             mov dword ptr [rbx], eax ; null
         .ENDIF
