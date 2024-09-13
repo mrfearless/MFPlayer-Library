@@ -4471,12 +4471,16 @@ MFPMediaItem_StreamTable PROC USES EBX EDX pMediaItem:DWORD, lpdwStreamCount:DWO
                 mov eax, dword ptr [ebx+4].PROPVARIANT.uint64Val
                 mov dwfps, eax
             .ELSE
-                xor edx, edx
                 mov eax, dword ptr [ebx+4].PROPVARIANT.uint64Val
                 mov ebx, dword ptr [ebx].PROPVARIANT.uint64Val
-                div ebx
-                .IF edx > 0000FFFFh
-                    inc eax
+                .IF eax == 0 || ebx == 0
+                    mov eax, 0
+                .ELSE
+                    xor edx, edx
+                    div ebx
+                    .IF edx > 0000FFFFh
+                        inc eax
+                    .ENDIF
                 .ENDIF
                 mov dwfps, eax
             .ENDIF

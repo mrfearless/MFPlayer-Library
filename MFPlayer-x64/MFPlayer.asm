@@ -4504,14 +4504,18 @@ MFPMediaItem_StreamTable PROC FRAME USES RBX RDX pMediaItem:QWORD, lpdwStreamCou
                 mov eax, dword ptr [rbx+4].PROPVARIANT.uint64Val
                 mov dwfps, eax
             .ELSE
-                xor rdx, rdx
                 xor rax, rax
                 xor rbx, rbx
                 mov eax, dword ptr [rbx+4].PROPVARIANT.uint64Val
                 mov ebx, dword ptr [rbx].PROPVARIANT.uint64Val
-                div ebx
-                .IF rdx > 0000FFFFh
-                    inc rax
+                .IF eax == 0 || ebx == 0
+                    mov eax, 0
+                .ELSE
+                    xor rdx, rdx
+                    div ebx
+                    .IF rdx > 0000FFFFh
+                        inc rax
+                    .ENDIF
                 .ENDIF
                 mov dwfps, eax
             .ENDIF
