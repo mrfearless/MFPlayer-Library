@@ -1906,6 +1906,10 @@ MFPMediaPlayer_GetSupportedRates PROC USES EBX pMediaPlayer:DWORD, bForwardDirec
         mov eax, FALSE
         ret
     .ENDIF
+    
+    mov dwSlowestRate, 1000
+    mov dwFastestRate, 1000
+    
     Invoke IMFPMediaPlayer_GetSupportedRates, pMediaPlayer, bForwardDirection, Addr fSlowestRate, Addr fFastestRate
     .IF eax == S_OK
     
@@ -1935,6 +1939,17 @@ MFPMediaPlayer_GetSupportedRates PROC USES EBX pMediaPlayer:DWORD, bForwardDirec
         
         mov eax, TRUE
     .ELSE
+        .IF pdwSlowestRate != 0
+            mov ebx, pdwSlowestRate
+            mov eax, dwSlowestRate
+            mov [ebx], eax
+        .ENDIF
+        .IF pdwFastestRate != 0
+            mov ebx, pdwFastestRate
+            mov eax, dwFastestRate
+            mov [ebx], eax
+        .ENDIF
+        
         mov eax, FALSE
     .ENDIF
     ret
@@ -4471,6 +4486,7 @@ MFPMediaItem_StreamTable PROC USES EBX EDX pMediaItem:DWORD, lpdwStreamCount:DWO
                 mov eax, dword ptr [ebx+4].PROPVARIANT.uint64Val
                 mov dwfps, eax
             .ELSE
+                lea ebx, pvValue
                 mov eax, dword ptr [ebx+4].PROPVARIANT.uint64Val
                 mov ebx, dword ptr [ebx].PROPVARIANT.uint64Val
                 .IF eax == 0 || ebx == 0

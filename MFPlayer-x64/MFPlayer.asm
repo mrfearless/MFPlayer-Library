@@ -1928,6 +1928,10 @@ MFPMediaPlayer_GetSupportedRates PROC FRAME USES RBX pMediaPlayer:QWORD, bForwar
         mov rax, FALSE
         ret
     .ENDIF
+    
+    mov dwSlowestRate, 1000
+    mov dwFastestRate, 1000
+    
     Invoke IMFPMediaPlayer_GetSupportedRates, pMediaPlayer, bForwardDirection, Addr fSlowestRate, Addr fFastestRate
     .IF rax == S_OK
     
@@ -1957,6 +1961,17 @@ MFPMediaPlayer_GetSupportedRates PROC FRAME USES RBX pMediaPlayer:QWORD, bForwar
         
         mov rax, TRUE
     .ELSE
+        .IF pdwSlowestRate != 0
+            mov rbx, pdwSlowestRate
+            mov eax, dwSlowestRate
+            mov [rbx], eax
+        .ENDIF
+        .IF pdwFastestRate != 0
+            mov rbx, pdwFastestRate
+            mov eax, dwFastestRate
+            mov [rbx], eax
+        .ENDIF
+        
         mov rax, FALSE
     .ENDIF
     ret
