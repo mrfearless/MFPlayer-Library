@@ -1,0 +1,104 @@
+;==============================================================================
+;
+; MFPlayer x86 DLL
+;
+; http://github.com/mrfearless
+;
+; This software is provided 'as-is', without any express or implied warranty. 
+; In no event will the author be held liable for any damages arising from the 
+; use of this software.
+;
+;==============================================================================
+
+LIBRARY MFPlayer
+EXPORTS
+
+    ; MFPMediaPlayer Functions:
+    MFPMediaPlayer_Init               
+    MFPMediaPlayer_Free               
+
+    MFPMediaPlayer_Play               
+    MFPMediaPlayer_Pause              
+    MFPMediaPlayer_Stop               
+    MFPMediaPlayer_Step               
+    MFPMediaPlayer_Toggle             
+
+    MFPMediaPlayer_ClearMediaItem     
+    MFPMediaPlayer_SetMediaItem       
+    MFPMediaPlayer_GetMediaItem       
+    MFPMediaPlayer_CreateMediaItemA   
+    MFPMediaPlayer_CreateMediaItemW   
+    MFPMediaPlayer_CreateMediaItemFromObject
+
+    MFPMediaPlayer_GetState           
+    MFPMediaPlayer_SetPosition        
+    MFPMediaPlayer_GetPosition        
+    MFPMediaPlayer_GetDuration        
+
+    MFPMediaPlayer_SetRate            
+    MFPMediaPlayer_GetRate            
+    MFPMediaPlayer_GetSupportedRates
+
+    MFPMediaPlayer_GetVolume          
+    MFPMediaPlayer_SetVolume          
+    MFPMediaPlayer_GetBalance         
+    MFPMediaPlayer_SetBalance         
+    MFPMediaPlayer_GetMute            
+    MFPMediaPlayer_SetMute            
+
+    MFPMediaPlayer_GetNativeVideoSize 
+    MFPMediaPlayer_GetIdealVideoSize  
+    MFPMediaPlayer_SetVideoSourceRect 
+    MFPMediaPlayer_GetVideoSourceRect 
+
+    MFPMediaPlayer_SetAspectRatioMode 
+    MFPMediaPlayer_GetAspectRatioMode 
+
+    MFPMediaPlayer_GetVideoWindow     
+    MFPMediaPlayer_UpdateVideo        
+    MFPMediaPlayer_SetBorderColor     
+    MFPMediaPlayer_GetBorderColor     
+
+    MFPMediaPlayer_InsertEffect       
+    MFPMediaPlayer_RemoveEffect       
+    MFPMediaPlayer_RemoveAllEffects   
+    MFPMediaPlayer_Shutdown           
+
+    ; MFPMediaItem Functions:
+    MFPMediaItem_Release              
+    MFPMediaItem_GetMediaPlayer       
+    MFPMediaItem_GetURLA              
+    MFPMediaItem_GetURLW              
+
+    MFPMediaItem_SetUserData          
+    MFPMediaItem_GetUserData          
+
+    MFPMediaItem_SetStartStopPosition 
+    MFPMediaItem_GetStartStopPosition 
+
+    MFPMediaItem_HasVideo             
+    MFPMediaItem_HasAudio             
+    MFPMediaItem_IsProtected          
+
+    MFPMediaItem_GetDuration          
+    MFPMediaItem_GetNumberOfStreams   
+    MFPMediaItem_SetStreamSelection   
+    MFPMediaItem_GetStreamSelection   
+
+    MFPMediaItem_GetStreamAttribute   
+    MFPMediaItem_GetPresentationAttribute
+    MFPMediaItem_GetCharacteristics   
+    MFPMediaItem_GetMetadata          
+
+    MFPMediaItem_SetStreamSink        
+
+    ; Media Information
+    MFPMediaItem_StreamTable          
+
+    ; Misc
+    MFPConvertMSTimeToTimeStringA     
+    MFPConvertMSTimeToTimeStringW     
+
+    MFPConvertStringToAnsi            
+    MFPConvertStringToWide            
+    MFPConvertStringFree              
