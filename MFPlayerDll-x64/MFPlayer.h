@@ -14,234 +14,23 @@
 extern "C" {
 #endif
 
+#include "mfplay.h"
 
 #ifdef _MSC_VER     // MSVC compiler
 #define MFP_EXPORT __declspec(dllexport) __fastcall
 #else
-#define MFP_EXPORT
+#define MFP_EXPORT __fastcall
 #endif
 
 //------------------------------------------------------------------------------
 // MFPMediaPlayer Constants, Enums, Structures, Etc
 //------------------------------------------------------------------------------
 #ifndef HRESULT
-typedef HRESULT TYPEDEF DWORD
+typedef long HRESULT;
 #endif
 
 #define STREAMLANG_LENGTH 28
 #define STREAMNAME_LENGTH 28
-
-typedef UINT32 MFP_CREATION_OPTIONS;
-
-typedef /* [v1_enum] */ 
-enum _MFP_CREATION_OPTIONS
-    {
-        MFP_OPTION_NONE	= 0,
-        MFP_OPTION_FREE_THREADED_CALLBACK	= 0x1,
-        MFP_OPTION_NO_MMCSS	= 0x2,
-        MFP_OPTION_NO_REMOTE_DESKTOP_OPTIMIZATION	= 0x4
-    } 	_MFP_CREATION_OPTIONS;
-
-typedef /* [v1_enum] */ 
-enum MFP_MEDIAPLAYER_STATE
-    {
-        MFP_MEDIAPLAYER_STATE_EMPTY	= 0,
-        MFP_MEDIAPLAYER_STATE_STOPPED	= 0x1,
-        MFP_MEDIAPLAYER_STATE_PLAYING	= 0x2,
-        MFP_MEDIAPLAYER_STATE_PAUSED	= 0x3,
-        MFP_MEDIAPLAYER_STATE_SHUTDOWN	= 0x4
-    } 	MFP_MEDIAPLAYER_STATE;
-
-typedef UINT32 MFP_MEDIAITEM_CHARACTERISTICS;
-
-typedef /* [v1_enum] */ 
-enum _MFP_MEDIAITEM_CHARACTERISTICS
-    {
-        MFP_MEDIAITEM_IS_LIVE	= 0x1,
-        MFP_MEDIAITEM_CAN_SEEK	= 0x2,
-        MFP_MEDIAITEM_CAN_PAUSE	= 0x4,
-        MFP_MEDIAITEM_HAS_SLOW_SEEK	= 0x8
-    } 	_MFP_MEDIAITEM_CHARACTERISTICS;
-
-typedef UINT32 MFP_CREDENTIAL_FLAGS;
-
-typedef /* [v1_enum] */ 
-enum _MFP_CREDENTIAL_FLAGS
-    {
-        MFP_CREDENTIAL_PROMPT	= 0x1,
-        MFP_CREDENTIAL_SAVE	= 0x2,
-        MFP_CREDENTIAL_DO_NOT_CACHE	= 0x4,
-        MFP_CREDENTIAL_CLEAR_TEXT	= 0x8,
-        MFP_CREDENTIAL_PROXY	= 0x10,
-        MFP_CREDENTIAL_LOGGED_ON_USER	= 0x20
-    } 	_MFP_CREDENTIAL_FLAGS;
-
-typedef 
-enum MFP_EVENT_TYPE
-    {
-        MFP_EVENT_TYPE_PLAY	= 0,
-        MFP_EVENT_TYPE_PAUSE	= 1,
-        MFP_EVENT_TYPE_STOP	= 2,
-        MFP_EVENT_TYPE_POSITION_SET	= 3,
-        MFP_EVENT_TYPE_RATE_SET	= 4,
-        MFP_EVENT_TYPE_MEDIAITEM_CREATED	= 5,
-        MFP_EVENT_TYPE_MEDIAITEM_SET	= 6,
-        MFP_EVENT_TYPE_FRAME_STEP	= 7,
-        MFP_EVENT_TYPE_MEDIAITEM_CLEARED	= 8,
-        MFP_EVENT_TYPE_MF	= 9,
-        MFP_EVENT_TYPE_ERROR	= 10,
-        MFP_EVENT_TYPE_PLAYBACK_ENDED	= 11,
-        MFP_EVENT_TYPE_ACQUIRE_USER_CREDENTIAL	= 12
-    } 	MFP_EVENT_TYPE;
-
-typedef
-enum MediaEventType
-    {
-        MEUnknown	= 0,
-        MEError	= 1,
-        MEExtendedType	= 2,
-        MENonFatalError	= 3,
-        MEGenericV1Anchor	= MENonFatalError,
-        MESessionUnknown	= 100,
-        MESessionTopologySet	= 101,
-        MESessionTopologiesCleared	= 102,
-        MESessionStarted	= 103,
-        MESessionPaused	= 104,
-        MESessionStopped	= 105,
-        MESessionClosed	= 106,
-        MESessionEnded	= 107,
-        MESessionRateChanged	= 108,
-        MESessionScrubSampleComplete	= 109,
-        MESessionCapabilitiesChanged	= 110,
-        MESessionTopologyStatus	= 111,
-        MESessionNotifyPresentationTime	= 112,
-        MENewPresentation	= 113,
-        MELicenseAcquisitionStart	= 114,
-        MELicenseAcquisitionCompleted	= 115,
-        MEIndividualizationStart	= 116,
-        MEIndividualizationCompleted	= 117,
-        MEEnablerProgress	= 118,
-        MEEnablerCompleted	= 119,
-        MEPolicyError	= 120,
-        MEPolicyReport	= 121,
-        MEBufferingStarted	= 122,
-        MEBufferingStopped	= 123,
-        MEConnectStart	= 124,
-        MEConnectEnd	= 125,
-        MEReconnectStart	= 126,
-        MEReconnectEnd	= 127,
-        MERendererEvent	= 128,
-        MESessionStreamSinkFormatChanged	= 129,
-        MESessionV1Anchor	= MESessionStreamSinkFormatChanged,
-        MESourceUnknown	= 200,
-        MESourceStarted	= 201,
-        MEStreamStarted	= 202,
-        MESourceSeeked	= 203,
-        MEStreamSeeked	= 204,
-        MENewStream	= 205,
-        MEUpdatedStream	= 206,
-        MESourceStopped	= 207,
-        MEStreamStopped	= 208,
-        MESourcePaused	= 209,
-        MEStreamPaused	= 210,
-        MEEndOfPresentation	= 211,
-        MEEndOfStream	= 212,
-        MEMediaSample	= 213,
-        MEStreamTick	= 214,
-        MEStreamThinMode	= 215,
-        MEStreamFormatChanged	= 216,
-        MESourceRateChanged	= 217,
-        MEEndOfPresentationSegment	= 218,
-        MESourceCharacteristicsChanged	= 219,
-        MESourceRateChangeRequested	= 220,
-        MESourceMetadataChanged	= 221,
-        MESequencerSourceTopologyUpdated	= 222,
-        MESourceV1Anchor	= MESequencerSourceTopologyUpdated,
-        MESinkUnknown	= 300,
-        MEStreamSinkStarted	= 301,
-        MEStreamSinkStopped	= 302,
-        MEStreamSinkPaused	= 303,
-        MEStreamSinkRateChanged	= 304,
-        MEStreamSinkRequestSample	= 305,
-        MEStreamSinkMarker	= 306,
-        MEStreamSinkPrerolled	= 307,
-        MEStreamSinkScrubSampleComplete	= 308,
-        MEStreamSinkFormatChanged	= 309,
-        MEStreamSinkDeviceChanged	= 310,
-        MEQualityNotify	= 311,
-        MESinkInvalidated	= 312,
-        MEAudioSessionNameChanged	= 313,
-        MEAudioSessionVolumeChanged	= 314,
-        MEAudioSessionDeviceRemoved	= 315,
-        MEAudioSessionServerShutdown	= 316,
-        MEAudioSessionGroupingParamChanged	= 317,
-        MEAudioSessionIconChanged	= 318,
-        MEAudioSessionFormatChanged	= 319,
-        MEAudioSessionDisconnected	= 320,
-        MEAudioSessionExclusiveModeOverride	= 321,
-        MESinkV1Anchor	= MEAudioSessionExclusiveModeOverride,
-        MECaptureAudioSessionVolumeChanged	= 322,
-        MECaptureAudioSessionDeviceRemoved	= 323,
-        MECaptureAudioSessionFormatChanged	= 324,
-        MECaptureAudioSessionDisconnected	= 325,
-        MECaptureAudioSessionExclusiveModeOverride	= 326,
-        MECaptureAudioSessionServerShutdown	= 327,
-        MESinkV2Anchor	= MECaptureAudioSessionServerShutdown,
-        METrustUnknown	= 400,
-        MEPolicyChanged	= 401,
-        MEContentProtectionMessage	= 402,
-        MEPolicySet	= 403,
-        METrustV1Anchor	= MEPolicySet,
-        MEWMDRMLicenseBackupCompleted	= 500,
-        MEWMDRMLicenseBackupProgress	= 501,
-        MEWMDRMLicenseRestoreCompleted	= 502,
-        MEWMDRMLicenseRestoreProgress	= 503,
-        MEWMDRMLicenseAcquisitionCompleted	= 506,
-        MEWMDRMIndividualizationCompleted	= 508,
-        MEWMDRMIndividualizationProgress	= 513,
-        MEWMDRMProximityCompleted	= 514,
-        MEWMDRMLicenseStoreCleaned	= 515,
-        MEWMDRMRevocationDownloadCompleted	= 516,
-        MEWMDRMV1Anchor	= MEWMDRMRevocationDownloadCompleted,
-        METransformUnknown	= 600,
-        METransformNeedInput	= ( METransformUnknown + 1 ) ,
-        METransformHaveOutput	= ( METransformNeedInput + 1 ) ,
-        METransformDrainComplete	= ( METransformHaveOutput + 1 ) ,
-        METransformMarker	= ( METransformDrainComplete + 1 ) ,
-        METransformInputStreamStateChanged	= ( METransformMarker + 1 ) ,
-        MEByteStreamCharacteristicsChanged	= 700,
-        MEVideoCaptureDeviceRemoved	= 800,
-        MEVideoCaptureDevicePreempted	= 801,
-        MEStreamSinkFormatInvalidated	= 802,
-        MEEncodingParameters	= 803,
-        MEContentProtectionMetadata	= 900,
-        MEDeviceThermalStateChanged	= 950,
-        MEReservedMax	= 10000
-    }   MediaEventType;
-
-typedef 
-enum MFVideoAspectRatioMode
-    {
-        MFVideoARMode_None	= 0,
-        MFVideoARMode_PreservePicture	= 0x1,
-        MFVideoARMode_PreservePixel	= 0x2,
-        MFVideoARMode_NonLinearStretch	= 0x4,
-        MFVideoARMode_Mask	= 0x7
-    } 	MFVideoAspectRatioMode;
-
-typedef 
-enum _MFVideoInterlaceMode
-    {
-        MFVideoInterlace_Unknown	= 0,
-        MFVideoInterlace_Progressive	= 2,
-        MFVideoInterlace_FieldInterleavedUpperFirst	= 3,
-        MFVideoInterlace_FieldInterleavedLowerFirst	= 4,
-        MFVideoInterlace_FieldSingleUpper	= 5,
-        MFVideoInterlace_FieldSingleLower	= 6,
-        MFVideoInterlace_MixedInterlaceOrProgressive	= 7,
-        MFVideoInterlace_Last	= ( MFVideoInterlace_MixedInterlaceOrProgressive + 1 ) ,
-        MFVideoInterlace_ForceDWORD	= 0x7fffffff
-    } 	MFVideoInterlaceMode;
 
 #ifndef _MFP_STREAM_RECORD_
 #define _MFP_STREAM_RECORD_
@@ -270,157 +59,108 @@ typedef struct MFP_STREAM_RECORD
 } 	MFP_STREAM_RECORD;
 #endif
 
-#ifndef _MFP_EVENT_HEADER_
-#define _MFP_EVENT_HEADER_
-typedef struct MFP_EVENT_HEADER
-    {
-    MFP_EVENT_TYPE eEventType;
-    HRESULT hrEvent;
-    IMFPMediaPlayer *pMediaPlayer;
-    MFP_MEDIAPLAYER_STATE eState;
-    IPropertyStore *pPropertyStore;
-    } 	MFP_EVENT_HEADER;
-#endif
+//---------------------------------------------------------------------------------------------------------------------------
+// Media Major Type         | Description                              | Subtype
+//--------------------------------------------------------------------------------------------------------------------------- 
+#define MFMT_None            0 // None.                                     None.
+#define MFMT_Audio 	         1 // Audio. 	                                Audio Subtype GUIDs.
+#define MFMT_Video 	         2 // Video. 	                                Video Subtype GUIDs.  
+#define MFMT_Stream 	     3 // Multiplexed stream or elementary stream. 	Stream Subtype GUIDs
+#define MFMT_Metadata 	     4 // Metadata stream. 	                        None.
+#define MFMT_Protected 	     5 // Protected media. 	                        The subtype specifies the content protection scheme.
+#define MFMT_SAMI 	         6 // SAMI captions. 	                        None.
+#define MFMT_Image 	         7 // Still image stream. 	                    WIC GUIDs and CLSIDs.
+#define MFMT_Binary 	     8 // Binary stream. 	                        None.
+#define MFMT_HTML 	         9 // HTML stream. 	                            None.
+#define MFMT_Perception 	10 // Streams from a camera sensor              None.
+#define MFMT_FileTransfer 	11 // A stream that contains data files. 	    None.
+#define MFMT_Script 	    12 // Script stream. 	                        None.
 
-#ifndef _MFP_PLAY_EVENT_
-#define _MFP_PLAY_EVENT_
-typedef struct MFP_PLAY_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_PLAY_EVENT;
-#endif
+//---------------------------------------------------------------------------------------------------------------------------
+// Audio Format Subtype     | Description                              
+//--------------------------------------------------------------------------------------------------------------------------- 
+#define MFAF_Unknown          0 // Unknown
+#define MFAF_MP3 	          1 // MPEG Audio Layer-3 (MP3). MPEG-4 Part 3, AAC (ISO/IEC 14496-3)
+#define MFAF_AAC 	          2 // Advanced Audio Coding (AAC).
+#define MFAF_ALAC 	          3 // Apple Lossless Audio Codec (ALAC).
+#define MFAF_Dolby_AC3 	      4 // Dolby Digital (AC-3).
+#define MFAF_Dolby_AC3_SP     5 // Dolby AC-3 audio over Sony/Philips Digital Interface (S/PDIF).
+#define MFAF_Dolby_DDPlus 	  6 // Dolby Digital Plus. EAC3
+#define MFAF_Dolby_AC4        7 // Dolby (AC-4).
+#define MFAF_Dolby_AC4_V1     8
+#define MFAF_Dolby_AC4_V2     9
+#define MFAF_Dolby_AC4_V1_ES 10
+#define MFAF_Dolby_AC4_V2_ES 11
+#define MFAF_DTS 	         12 // Digital Theater Systems (DTS) audio.
+#define MFAF_DTS_RAW         13
+#define MFAF_DTS_HD          14 // DTS-HD Master Audio
+#define MFAF_DTS_XLL         15 // DTS-HD Master Audio Lossless
+#define MFAF_DTS_LBR         16
+#define MFAF_DTS_UHD         17
+#define MFAF_DTS_UHDY        18
+#define MFAF_WMAudio_LL      19 // Windows Media Audio 9 Lossless codec or Windows Media Audio 9.1 codec. (WMALOSSLESS)
+#define MFAF_WMAudioV8 	     20 // Windows Media Audio 8 codec, Windows Media Audio 9 codec, or Windows Media Audio 9.1 codec. (WMAV2)
+#define MFAF_WMAudioV9 	     21 // Windows Media Audio 9 Professional codec or Windows Media Audio 9.1 Professional codec. (WMAPRO)
+#define MFAF_WMASPDIF 	     22 // Windows Media Audio 9 Professional codec over S/PDIF.
+#define MFAF_FLAC 	         23 // Free Lossless Audio Codec (FLAC).
+#define MFAF_PCM 	         24 // Uncompressed PCM audio.
+#define MFAF_LPCM            25 // DVD audio data
+#define MFAF_MPEG 	         26 // MPEG-1 audio payload. (MP1)
+#define MFAF_MPEGH           27
+#define MFAF_MPEGH_ES        28
+#define MFAF_MSP1 	         29 // Windows Media Audio 9 Voice codec (WMAVOICE)
+#define MFAF_AMR_NB 	     30 // Adaptive Multi-Rate Narrowband (AMR_NB)
+#define MFAF_AMR_WB 	     31 // Adaptive Multi-Rate Wideband (AMR_WB)
+#define MFAF_AMR_WP 	     32 // Adaptive Multi-Rate Wideband Plus (AMR_WP)
+#define MFAF_DRM 	         33 // Encrypted audio data used with secure audio path.
+#define MFAF_Vorbis          34 // VORBIS
+#define MFAF_Opus 	         35 // Opus
+#define MFAF_Float 	         36 // Uncompressed IEEE floating-point audio.
+#define MFAF_Float_SO        37 // Uncompressed IEEE floating-point audio.
+#define MFAF_RAW_AAC1 	     38 // Advanced Audio Coding (AAC). In AVI
+#define MFAF_QCELP 	         39 // QCELP (Qualcomm Code Excited Linear Prediction) audio.
+#define MFAF_Dolby_AC3_HDCP  40 // Dolby Digital (AC-3) (HDCP)
+#define MFAF_AAC_HDCP        41 
+#define MFAF_PCM_HDCP        42 
+#define MFAF_ADTS_HDCP       43 // Advanced Audio Coding (AAC) in Audio Data Transport Stream (ADTS) format (HDCP)
+#define MFAF_ADTS 	         44 // Advanced Audio Coding (AAC) in Audio Data Transport Stream (ADTS)
 
-#ifndef _MFP_PAUSE_EVENT_
-#define _MFP_PAUSE_EVENT_
-typedef struct MFP_PAUSE_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_PAUSE_EVENT;
-#endif
 
-#ifndef _MFP_STOP_EVENT_
-#define _MFP_STOP_EVENT_
-typedef struct MFP_STOP_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_STOP_EVENT;
-#endif
+//---------------------------------------------------------------------------------------------------------------------------
+// Video Format Subtype     | Description                              
+//--------------------------------------------------------------------------------------------------------------------------- 
+#define MFVF_Unknown         0 // 
+#define MFVF_M4S2 	         1 // 'M4S2' 	MPEG-4 part 2 video.
+#define MFVF_MP4V 	         2 // 'MP4V' 	MPEG-4 part 2 video.
+#define MFVF_H264 	         3 // 'H264' 	H.264 video.
+#define MFVF_H265 	         4 // 'H265' 	H.265 video.
+#define MFVF_H264_ES         5 //           Not applicable H.264 elementary stream.
+#define MFVF_WMV1 	         6 // 'WMV1' 	Windows Media Video codec version 7.
+#define MFVF_WMV2 	         7 // 'WMV2' 	Windows Media Video 8 codec.
+#define MFVF_WMV3 	         8 // 'WMV3' 	Windows Media Video 9 codec.
+#define MFVF_MP4S 	         9 // 'MP4S' 	ISO MPEG 4 codec version 1.
+#define MFVF_AV1 	        10 // 'AV01' 	AV1 video.
+#define MFVF_VP80 	        11 // 'MPG1' 	VP8 video.
+#define MFVF_VP90 	        12 // 'MPG1' 	VP9 video.
+#define MFVF_HEVC 	        13 // 'HEVC' 	The HEVC Main profile and Main Still Picture profile.
+#define MFVF_HEVC_ES        14 //'HEVS' 	This media type is the same as MFVF_HEVC, except media samples contain a fragmented HEVC bitstream.
+#define MFVF_H263 	        15 // 'H263' 	H.263 video.
+#define MFVF_MSS1 	        16 // 'MSS1' 	Windows Media Screen codec version 1.
+#define MFVF_MSS2 	        17 // 'MSS2' 	Windows Media Video 9 Screen codec.
+#define MFVF_MJPG 	        18 // 'MJPG' 	Motion JPEG.
+#define MFVF_MPG1 	        19 // 'MPG1' 	MPEG-1 video.
+#define MFVF_MPEG2          20 // 	        Not applicable 	MPEG-2 video. (Equivalent to MEDIASUBTYPE_MPEG2_VIDEO in DirectShow.)
+#define MFVF_DV25 	        21 // 'dv25' 	DVCPRO 25 (525-60 or 625-50).
+#define MFVF_DV50 	        22 // 'dv50' 	DVCPRO 50 (525-60 or 625-50).
+#define MFVF_DVC 	        23 // 'dvc ' 	DVC/DV Video.
+#define MFVF_DVH1 	        24 // 'dvh1' 	DVCPRO 100 (1080/60i, 1080/50i, or 720/60P).
+#define MFVF_DVHD 	        25 // 'dvhd' 	HD-DVCR (1125-60 or 1250-50).
+#define MFVF_DVSD 	        26 // 'dvsd' 	SDL-DVCR (525-60 or 625-50).
+#define MFVF_DVSL 	        27 // 'dvsl' 	SD-DVCR (525-60 or 625-50).
+#define MFVF_WVC1 	        28 // 'WVC1' 	SMPTE 421M ("VC-1").
+#define MFVF_420O 	        29 // '420O' 	8-bit per channel planar YUV 4:2:0 video.
+#define MFVF_MP43 	        30 // 'MP43' 	Microsoft MPEG 4 codec version 3. This codec is no longer supported.
 
-#ifndef _MFP_POSITION_SET_EVENT_
-#define _MFP_POSITION_SET_EVENT_
-typedef struct MFP_POSITION_SET_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_POSITION_SET_EVENT;
-#endif
-
-#ifndef _MFP_RATE_SET_EVENT_
-#define _MFP_RATE_SET_EVENT_
-typedef struct MFP_RATE_SET_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    float flRate;
-    } 	MFP_RATE_SET_EVENT;
-#endif
-
-#ifndef _MFP_MEDIAITEM_CREATED_EVENT_
-#define _MFP_MEDIAITEM_CREATED_EVENT_
-typedef struct MFP_MEDIAITEM_CREATED_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    DWORD_PTR dwUserData;
-    } 	MFP_MEDIAITEM_CREATED_EVENT;
-#endif
-
-#ifndef _MFP_MEDIAITEM_SET_EVENT_
-#define _MFP_MEDIAITEM_SET_EVENT_
-typedef struct MFP_MEDIAITEM_SET_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_MEDIAITEM_SET_EVENT;
-#endif
-
-#ifndef _MFP_FRAME_STEP_EVENT_
-#define _MFP_FRAME_STEP_EVENT_
-typedef struct MFP_FRAME_STEP_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_FRAME_STEP_EVENT;
-#endif
-
-#ifndef _MFP_MEDIAITEM_CLEARED_EVENT_
-#define _MFP_MEDIAITEM_CLEARED_EVENT_
-typedef struct MFP_MEDIAITEM_CLEARED_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_MEDIAITEM_CLEARED_EVENT;
-#endif
-
-#ifndef _MFP_MF_EVENT_
-#define _MFP_MF_EVENT_
-typedef struct MFP_MF_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    MediaEventType MFEventType;
-    IMFMediaEvent *pMFMediaEvent;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_MF_EVENT;
-#endif
-
-#ifndef _MFP_ERROR_EVENT_
-#define _MFP_ERROR_EVENT_
-typedef struct MFP_ERROR_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    } 	MFP_ERROR_EVENT;
-#endif
-
-#ifndef _MFP_PLAYBACK_ENDED_EVENT_
-#define _MFP_PLAYBACK_ENDED_EVENT_
-typedef struct MFP_PLAYBACK_ENDED_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    IMFPMediaItem *pMediaItem;
-    } 	MFP_PLAYBACK_ENDED_EVENT;
-#endif
-
-#ifndef _MFP_ACQUIRE_USER_CREDENTIAL_EVENT_
-#define _MFP_ACQUIRE_USER_CREDENTIAL_EVENT_
-typedef struct MFP_ACQUIRE_USER_CREDENTIAL_EVENT
-    {
-    MFP_EVENT_HEADER header;
-    DWORD_PTR dwUserData;
-    BOOL fProceedWithAuthentication;
-    HRESULT hrAuthenticationStatus;
-    LPCWSTR pwszURL;
-    LPCWSTR pwszSite;
-    LPCWSTR pwszRealm;
-    LPCWSTR pwszPackage;
-    LONG nRetries;
-    MFP_CREDENTIAL_FLAGS flags;
-    IMFNetCredential *pCredential;
-    } 	MFP_ACQUIRE_USER_CREDENTIAL_EVENT;
-#endif
-
-#ifndef _MFVideoNormalizedRect_
-#define _MFVideoNormalizedRect_
-typedef struct MFVideoNormalizedRect
-    {
-    float left;
-    float top;
-    float right;
-    float bottom;
-    } 	MFVideoNormalizedRect;
-#endif
 
 
 /*------------------------------------------------------------------------------
